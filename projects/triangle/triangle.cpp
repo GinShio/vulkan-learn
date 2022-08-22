@@ -1,11 +1,37 @@
 #include "triangle.hpp"
 
 #include "base_type.hpp"
+#include "create.hpp"
+#include "scope_guard.hpp"
 
-#include <cstddef>
+#include <stddef.h>
+#include <string.h>
+
 #include <limits>
+#include <utility>
+
+#include <vulkan/vulkan.hpp>
 
 namespace {
+
+// triangle
+// static ::std::array vertices{
+//     Vertex{{0.f, -0.5f}, {1.f, 0.f, 0.f}},
+//     Vertex{{0.5f, 0.5f}, {0.f, 1.f, 0.f}},
+//     Vertex{{-0.5f, 0.5f}, {0.f, 0.f, 1.f}},
+// };
+
+// static ::std::array<uint16_t, 3> indices{0, 1, 2};
+
+// rectangle
+static ::std::array vertices{
+    Vertex{{-0.5f, -0.5f}, {1.f, 0.f, 0.f}},
+    Vertex{{0.5f, -0.5f}, {0.f, 1.f, 0.f}},
+    Vertex{{0.5f, 0.5f}, {0.f, 0.f, 1.f}},
+    Vertex{{-0.5f, 0.5f}, {0.f, 1.f, 0.f}},
+};
+
+static ::std::array<uint16_t, 6> indices{0, 1, 2, 0, 2, 3};
 
 auto create_render_pass(::vk::Device &device,
                         SwapchainRequiredInfo &required_info)
@@ -34,24 +60,95 @@ auto create_render_pass(::vk::Device &device,
   return render_pass;
 }
 
-auto create_command_pool(::vk::Device &device, QueueFamilyIndices &indices)
+auto create_command_pool(::vk::Device &device,
+                         QueueFamilyIndices &queue_indices)
     -> ::vk::CommandPool {
   ::vk::CommandPoolCreateInfo info;
   info.setFlags(::vk::CommandPoolCreateFlagBits::eResetCommandBuffer)
-      .setQueueFamilyIndex(indices.graphics_indices.value());
+      .setQueueFamilyIndex(queue_indices.graphics_indices.value());
 
   auto cmd_pool = device.createCommandPool(info);
   assert(cmd_pool && "command pool create failed!");
   return cmd_pool;
 }
 
-auto create_command_buffers(::vk::Device &device, ::vk::CommandPool &pool,
-                            size_t sz) -> ::std::vector<::vk::CommandBuffer> {
+auto allocate_command_buffers(::vk::Device &device, ::vk::CommandPool &pool,
+                              size_t sz) -> ::std::vector<::vk::CommandBuffer> {
   ::vk::CommandBufferAllocateInfo alloc_info;
   alloc_info.setLevel(::vk::CommandBufferLevel::ePrimary)
       .setCommandPool(pool)
       .setCommandBufferCount(sz);
   return device.allocateCommandBuffers(alloc_info);
+}
+
+auto create_device_buffer(::vk::PhysicalDevice &physical, ::vk::Device &device,
+                          ::vk::Queue &queue, ::vk::CommandPool &pool,
+                          QueueFamilyIndices &queue_indices)
+    -> ::std::tuple<::vk::Buffer, ::vk::Buffer, ::vk::DeviceMemory> {
+  // vertex buffer
+  ::vk::Buffer host_vertex_buffer =
+      create_buffer(device, queue_indices, sizeof(vertices),
+                    ::vk::BufferUsageFlagBits::eTransferSrc);
+  ::vk::DeviceMemory host_vertex_memory =
+      allocate_memory(physical, device, {host_vertex_buffer},
+                      ::vk::MemoryPropertyFlagBits::eHostVisible |
+                          ::vk::MemoryPropertyFlagBits::eHostCoherent);
+  void *data = device.mapMemory(host_vertex_memory, 0, sizeof(vertices));
+  MAKE_SCOPE_GUARD {
+    device.unmapMemory(host_vertex_memory);
+    device.freeMemory(host_vertex_memory);
+    device.destroyBuffer(host_vertex_buffer);
+  };
+  ::memcpy(data, vertices.data(), sizeof(vertices));
+
+  // index buffer
+  ::vk::Buffer host_index_buffer =
+      create_buffer(device, queue_indices, sizeof(indices),
+                    ::vk::BufferUsageFlagBits::eTransferSrc);
+  ::vk::DeviceMemory host_index_memory =
+      allocate_memory(physical, device, {host_index_buffer},
+                      ::vk::MemoryPropertyFlagBits::eHostVisible |
+                          ::vk::MemoryPropertyFlagBits::eHostCoherent);
+  data = device.mapMemory(host_index_memory, 0, sizeof(indices));
+  MAKE_SCOPE_GUARD {
+    device.unmapMemory(host_index_memory);
+    device.freeMemory(host_index_memory);
+    device.destroyBuffer(host_index_buffer);
+  };
+  ::memcpy(data, indices.data(), sizeof(indices));
+
+  // device buffer
+  ::vk::Buffer device_vertex_buffer =
+      create_buffer(device, queue_indices, sizeof(vertices),
+                    ::vk::BufferUsageFlagBits::eTransferDst |
+                        ::vk::BufferUsageFlagBits::eVertexBuffer);
+  ::vk::Buffer device_index_buffer =
+      create_buffer(device, queue_indices, sizeof(indices),
+                    ::vk::BufferUsageFlagBits::eTransferDst |
+                        ::vk::BufferUsageFlagBits::eIndexBuffer);
+  ::vk::DeviceMemory device_memory = allocate_memory(
+      physical, device, {device_vertex_buffer, device_index_buffer},
+      ::vk::MemoryPropertyFlagBits::eDeviceLocal);
+
+  auto transfer_cmd_buffers = allocate_command_buffers(device, pool, 1);
+  MAKE_SCOPE_GUARD { device.freeCommandBuffers(pool, transfer_cmd_buffers); };
+  ::vk::CommandBufferBeginInfo begin_info;
+  begin_info.setFlags(::vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+  transfer_cmd_buffers.front().begin(begin_info);
+  transfer_cmd_buffers.front().copyBuffer(
+      host_vertex_buffer, device_vertex_buffer,
+      ::vk::BufferCopy{0, 0, sizeof(vertices)});
+  transfer_cmd_buffers.front().copyBuffer(
+      host_index_buffer, device_index_buffer,
+      ::vk::BufferCopy{0, 0, sizeof(indices)});
+  transfer_cmd_buffers.front().end();
+  ::vk::SubmitInfo submit_info;
+  submit_info.setCommandBuffers(transfer_cmd_buffers);
+  queue.submit(submit_info);
+  device.waitIdle();
+  return ::std::make_tuple(::std::move(device_vertex_buffer),
+                           ::std::move(device_index_buffer),
+                           ::std::move(device_memory));
 }
 
 } // namespace
@@ -68,8 +165,13 @@ auto TriangleApplication::app_init(QueueFamilyIndices &queue_indices,
       create_frame_buffers(this->device_, this->image_views_,
                            this->render_pass_, this->required_info_);
   this->cmd_pool_ = create_command_pool(this->device_, queue_indices);
-  this->cmd_buffers_ = create_command_buffers(this->device_, this->cmd_pool_,
-                                              this->framebuffers_.size());
+  this->cmd_buffers_ = allocate_command_buffers(this->device_, this->cmd_pool_,
+                                                this->framebuffers_.size());
+  ::std::tie(this->vertex_buffer_, this->index_buffer_, this->device_memory_) =
+      create_device_buffer(this->physical_, this->device_,
+                           this->graphics_queue_, this->cmd_pool_,
+                           queue_indices);
+
   this->image_avaliables_ =
       create_semaphores(this->device_, this->framebuffers_.size());
   this->present_finishes_ =
@@ -86,6 +188,9 @@ auto TriangleApplication::app_destroy() -> void {
     this->device_.destroySemaphore(this->present_finishes_[i]);
     this->device_.destroySemaphore(this->image_avaliables_[i]);
   }
+  this->device_.freeMemory(this->device_memory_);
+  this->device_.destroyBuffer(this->index_buffer_);
+  this->device_.destroyBuffer(this->vertex_buffer_);
   this->device_.freeCommandBuffers(this->cmd_pool_, this->cmd_buffers_);
   this->device_.destroyCommandPool(this->cmd_pool_);
   for (auto &buffer : this->framebuffers_) {
@@ -94,6 +199,27 @@ auto TriangleApplication::app_destroy() -> void {
   this->device_.destroyPipeline(this->pipeline_);
   this->device_.destroyRenderPass(this->render_pass_);
   this->device_.destroyPipelineLayout(this->layout_);
+}
+
+auto TriangleApplication::get_vertex_input_description() -> decltype(auto) {
+  ::std::array<::vk::VertexInputAttributeDescription, 2> attr_descs;
+  attr_descs[0]
+      .setBinding(0)
+      .setLocation(0)
+      .setFormat(::vk::Format::eR32G32Sfloat)
+      .setOffset(offsetof(Vertex, position));
+  attr_descs[1]
+      .setBinding(0)
+      .setLocation(1)
+      .setFormat(::vk::Format::eR32G32B32Sfloat)
+      .setOffset(offsetof(Vertex, color));
+
+  ::vk::VertexInputBindingDescription bind_desc;
+  bind_desc.setBinding(0)
+      .setInputRate(::vk::VertexInputRate::eVertex)
+      .setStride(sizeof(Vertex));
+
+  return ::std::make_pair(attr_descs, bind_desc);
 }
 
 auto TriangleApplication::record_command(::vk::CommandBuffer &cbuf,
@@ -113,7 +239,11 @@ auto TriangleApplication::record_command(::vk::CommandBuffer &cbuf,
   cbuf.beginRenderPass(render_pass_begin, ::vk::SubpassContents::eInline);
   cbuf.bindPipeline(::vk::PipelineBindPoint::eGraphics, this->pipeline_);
 
-  cbuf.draw(3, 1, 0, 0);
+  cbuf.bindVertexBuffers(0, this->vertex_buffer_, {0});
+  cbuf.bindIndexBuffer(this->index_buffer_, 0, ::vk::IndexType::eUint16);
+
+  // cbuf.draw(vertices.size(), 1, 0, 0);
+  cbuf.drawIndexed(indices.size(), 1, 0, 0, 0);
 
   cbuf.endRenderPass();
   cbuf.end();

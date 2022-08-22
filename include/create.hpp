@@ -63,6 +63,13 @@ auto create_frame_buffers(::vk::Device &device,
                           SwapchainRequiredInfo &required_info)
     -> ::std::vector<::vk::Framebuffer>;
 
+auto create_buffer(::vk::Device &device, QueueFamilyIndices &indices,
+                   size_t size, ::vk::BufferUsageFlags flag) -> ::vk::Buffer;
+
+auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
+                     ::std::vector<::vk::Buffer> const &buffers,
+                     ::vk::MemoryPropertyFlags flag) -> ::vk::DeviceMemory;
+
 auto create_semaphores(::vk::Device &device, size_t size)
     -> ::std::vector<::vk::Semaphore>;
 

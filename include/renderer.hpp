@@ -105,6 +105,10 @@ auto Renderer<App>::create_vf_pipeline(::vk::ShaderModule const &vert,
 
   // vertex input
   ::vk::PipelineVertexInputStateCreateInfo vertex_input;
+  auto [attr_descs, bind_desc] =
+      this->underlying()->get_vertex_input_description();
+  vertex_input.setVertexAttributeDescriptions(attr_descs)
+      .setVertexBindingDescriptions(bind_desc);
 
   // input assembly
   ::vk::PipelineInputAssemblyStateCreateInfo input_asm;

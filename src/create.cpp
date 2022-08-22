@@ -273,6 +273,63 @@ auto create_frame_buffers(::vk::Device &device,
   return buffers;
 }
 
+auto create_buffer(::vk::Device &device, QueueFamilyIndices &indices,
+                   size_t size, ::vk::BufferUsageFlags flag) -> ::vk::Buffer {
+  ::vk::BufferCreateInfo info;
+  info.setSharingMode(::vk::SharingMode::eExclusive)
+      .setQueueFamilyIndices(indices.graphics_indices.value())
+      .setSize(size)
+      .setUsage(flag);
+
+  ::vk::Buffer buffer = device.createBuffer(info);
+  assert(buffer && "vertex buffer create failed!");
+  return buffer;
+}
+
+auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
+                     ::std::vector<::vk::Buffer> const &buffers,
+                     ::vk::MemoryPropertyFlags flag) -> ::vk::DeviceMemory {
+  auto property = physical.getMemoryProperties();
+  decltype(property.memoryHeapCount) index{property.memoryTypeCount};
+  ::vk::DeviceSize size{0};
+  for (auto &buffer : buffers) {
+    auto requirement = device.getBufferMemoryRequirements(buffer);
+    size +=
+        (requirement.size / requirement.alignment +
+         static_cast<size_t>(requirement.size % requirement.alignment != 0)) *
+        requirement.alignment;
+
+    if (index != property.memoryTypeCount) {
+      continue;
+    }
+    for (decltype(property.memoryHeapCount) i = 0; i < property.memoryTypeCount;
+         ++i) {
+      if (requirement.memoryTypeBits & (1 << i) &&
+          property.memoryTypes[i].propertyFlags & flag) {
+        index = i;
+        break;
+      }
+    }
+  }
+
+  ::vk::MemoryAllocateInfo info;
+  info.setAllocationSize(size).setMemoryTypeIndex(index);
+
+  ::vk::DeviceMemory memory = device.allocateMemory(info);
+  assert(memory && "device memory allocate failed!");
+
+  ::vk::DeviceSize offset{0};
+  for (auto &buffer : buffers) {
+    auto requirement = device.getBufferMemoryRequirements(buffer);
+    device.bindBufferMemory(buffer, memory, offset);
+    offset +=
+        (requirement.size / requirement.alignment +
+         static_cast<size_t>(requirement.size % requirement.alignment != 0)) *
+        requirement.alignment;
+  }
+  return memory;
+}
+
 auto create_semaphores(::vk::Device &device, size_t sz)
     -> ::std::vector<::vk::Semaphore> {
   ::vk::SemaphoreCreateInfo info;

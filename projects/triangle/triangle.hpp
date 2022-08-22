@@ -12,6 +12,8 @@ private:
 
   auto app_destroy() -> void;
 
+  auto get_vertex_input_description() -> decltype(auto);
+
   auto record_command(::vk::CommandBuffer &cbuf, ::vk::Framebuffer &fbuf)
       -> void;
 
@@ -23,6 +25,11 @@ private:
   ::vk::RenderPass render_pass_{nullptr};
   ::vk::Pipeline pipeline_{nullptr};
   ::vk::CommandPool cmd_pool_{nullptr};
+
+  ::vk::Buffer vertex_buffer_{nullptr};
+  ::vk::Buffer index_buffer_{nullptr};
+  ::vk::DeviceMemory device_memory_{nullptr};
+
   ::std::vector<::vk::Framebuffer> framebuffers_;
   ::std::vector<::vk::CommandBuffer> cmd_buffers_;
   ::std::vector<::vk::Semaphore> image_avaliables_;
