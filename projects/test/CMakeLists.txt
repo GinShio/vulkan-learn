@@ -12,24 +12,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   )
 
-target_sources(${PROJECT_NAME} PUBLIC
-  main.cc
+target_sources(${PROJECT_NAME} PRIVATE
+  main.cpp
   )
 
-if(WIN32)
-  target_link_libraries(${PROJECT_NAME} PUBLIC
-    vulkan-1
-    glfw3
-    )
-else()
-  target_link_libraries(${PROJECT_NAME} PUBLIC
-    glfw
-    vulkan
-    dl
-    pthread
-    X11
-    Xxf86vm
-    Xrandr
-    Xi
-    )
-endif()
+target_add_window_library(${PROJECT_NAME} PRIVATE GLFW)

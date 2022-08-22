@@ -51,6 +51,23 @@ flycheck_*.el
 /network-security.data
 
 
+######################### VisualStudioCode #########################
+# repo: github/gitignore; pin: bf3f140cfa; file: Global/VisualStudioCode.gitignore
+# LICENSE: Creative Commons Zero v1.0 Universal
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Local History for Visual Studio Code
+.history/
+
+# Built Visual Studio Code Extensions
+*.vsix
+
+
 ######################### VisualStudio #########################
 # repo: github/gitignore; pin: 491040e88a; file: Global/VisualStudio.gitignore
 # LICENSE: Creative Commons Zero v1.0 Universal

@@ -1,4 +1,3 @@
-#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
 #define GLM_FORCE_RADIANS
@@ -22,7 +21,7 @@ int main() {
 
   glm::mat4 matrix;
   glm::vec4 vec;
-  auto test = matrix * vec;
+  [[maybe_unused]] auto test = matrix * vec;
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
