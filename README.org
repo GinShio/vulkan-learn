@@ -1,0 +1,133 @@
+#+title: README
+
+* Vulkan-Learn
+
+Learning vulkan C++ binding repo
+
+** requirement
+
+  + Vulkan
+  + GLFW (only VulkanTest)
+  + SDL2
+  + pkgconfig
+    * download pkg-config and dependencies if Windows
+      - [[https://download.gnome.org/binaries/win32/dependencies/pkg-config_0.26-1_win32.zip][pkg-config_0.26-1]]
+      - [[https://download.gnome.org/binaries/win32/glib/2.28/glib_2.28.8-1_win32.zip][glib_2.28.8-1]]
+      - [[https://download.gnome.org/binaries/win32/dependencies/gettext-runtime_0.18.1.1-2_win32.zip][gettext-runtime_0.18.1.1-2]]
+    * write ~.pc~ file
+      - vulkan.pc
+      - glfw.pc (only VulkanTest)
+      - sdl2.pc
+    * set environment variable =PKG_CONFIG_PATH=
+  + cmake
+
+** project architecture
+#+begin_example
+/
+├── cmake
+├── CMakeLists.txt
+├── include
+├── projects
+│   ├── CMakeLists.txt
+│   ├── test
+│   └── triangle
+├── README.org
+└── src
+#+end_example
+
+
++ cmake :: cmake files
++ include :: common utility definition
++ projects :: projects, maybe link utility
+  | dir      | target         | comment                             |
+  |----------+----------------+-------------------------------------|
+  | test     | VulkanTest     | test vulkan SDK                     |
+  | triangle | VulkanTriangle | draw a triangle (learn VF pipeline) |
++ src :: common utility implement, target =VulkanBase=
+
+** .pc file
+.pc file is libraries configuration file, it record the library's
+=compile-options=, =link-options=, and etc. pkg-config can parse .pc file, and
+return the library's information.
+
+Like this, it print the link options
+#+begin_src shell
+pkg-config --libs vulkan
+#+end_src
+
+#+RESULTS:
+: -lvulkan
+
+this command will print the compile options
+#+begin_src shell
+pkg-config --cflags sdl2
+#+end_src
+
+#+RESULTS:
+: -D_REENTRANT -I/usr/include/SDL2
+
+but Windows haven't .pc file, so we need write .pc files. e.g. =vulkan.pc=
+#+begin_example
+prefix=/usr
+exec_prefix=/usr
+libdir=/usr/lib/x86_64-linux-gnu
+includedir=/usr/include
+
+Name: Vulkan-Loader
+Description: Vulkan Loader
+Version: 1.3.204
+Libs: -L${libdir} -lvulkan
+Libs.private:  -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc
+Cflags: -I${includedir}
+#+end_example
+
+** build
+
++ Windows with MSVC (don't setup the pkg-config's environment variable)
+  #+begin_src shell
+cmake -S. -Bcmake-build-debug -DCMAKE_BUILD_TYPE=Debug -DPKG_CONFIG_PATH=/path/to/pc-file
+  #+end_src
+
++ Unix with =Ninja=
+  #+begin_src shell
+cmake -S. -Bcmake-build-debug -GNinja -DCMAKE_BUILD_TYPE=Debug
+  #+end_src
+
++ Unix with =Makefile=
+  #+begin_src shell
+cmake -S. -Bcmake-build-debug -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug
+  #+end_src
+
++ Unix and use clang
+  #+begin_src shell
+cmake -S. -Bcmake-build-debug -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+  #+end_src
+
+And then, build the projects
+#+begin_src shell
+cmake --build cmake-build-debug
+#+end_src
+
+If you just want to build the vulkan-triangle, run command
+#+begin_src shell
+cmake --build cmake-build-debug --target VulkanTriangle
+#+end_src
+
+** run
+Except project =VulkanTest=, other projects need command flag -- shader path,
+spir-v file build and generate to =${CMAKE_BUILD_DIR}/shader/${TARGET_NAME}=.
+
+e.g. run VulkanTriangle
+#+begin_src shell
+cmake-build-debug/bin/VulkanTriangle cmake-build-debug/shader/VulkanTriangle
+#+end_src
+
+** C++ technical
+ + [[https://www.geeksforgeeks.org/curiously-recurring-template-pattern-crtp-2/][Curiously recurring template pattern (CRTP)]]
+ + [[https://en.cppreference.com/w/cpp/language/structured_binding][Structured binding declaration]]
+ + [[https://en.cppreference.com/w/cpp/language/class_template_argument_deduction][Class template argument deduction (CTAD)]]
+ + [[https://en.cppreference.com/w/cpp/language/raii][Resource Acquisition Is Initialization (RAII)]]
+ + [[https://en.cppreference.com/w/cpp/language/auto][Placeholder type specifiers]]
+
+** LICENSE
+[[LICENSE][3-clause BSD License]] © Xin 'Russell' Liu
