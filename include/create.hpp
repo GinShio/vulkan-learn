@@ -6,7 +6,6 @@
 #include <optional>
 
 #include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_structs.hpp>
 
 struct QueueFamilyIndices {
   ::std::optional<uint32_t> graphics_indices;
@@ -55,20 +54,40 @@ auto create_image_views(::vk::Device &device,
                         SwapchainRequiredInfo &required_info)
     -> ::std::vector<::vk::ImageView>;
 
-auto create_pipeline_layout(::vk::Device &device) -> ::vk::PipelineLayout;
-
 auto create_frame_buffers(::vk::Device &device,
                           ::std::vector<::vk::ImageView> &views,
                           ::vk::RenderPass &render_pass,
                           SwapchainRequiredInfo &required_info)
     -> ::std::vector<::vk::Framebuffer>;
 
+auto allocate_command_buffers(::vk::Device &device, ::vk::CommandPool &pool,
+                              size_t sz) -> ::std::vector<::vk::CommandBuffer>;
+
+auto copy_data(::vk::Device &device, ::vk::DeviceMemory &memory, size_t offset,
+               size_t size, void *data) -> void;
+
 auto create_buffer(::vk::Device &device, QueueFamilyIndices &indices,
                    size_t size, ::vk::BufferUsageFlags flag) -> ::vk::Buffer;
 
 auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
+                     ::vk::Buffer &buffer, ::vk::MemoryPropertyFlags flag)
+    -> ::vk::DeviceMemory;
+
+auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
                      ::std::vector<::vk::Buffer> const &buffers,
                      ::vk::MemoryPropertyFlags flag) -> ::vk::DeviceMemory;
+
+auto allocate_memory(
+    ::vk::PhysicalDevice &physical, ::vk::Device &device,
+    ::vk::CommandPool &pool, ::vk::Queue &queue,
+    ::std::vector<::std::tuple<::vk::Buffer, ::vk::DeviceMemory,
+                               ::vk::Buffer>> const &buffers,
+    ::vk::MemoryPropertyFlags flag)
+    -> ::std::pair<::std::vector<::vk::Buffer>, ::vk::DeviceMemory>;
+
+auto copy_buffer(::vk::Device &device, ::vk::CommandPool &pool,
+                 ::vk::Queue &queue, ::vk::Buffer const &src,
+                 ::vk::Buffer const &dest, ::vk::DeviceSize size) -> void;
 
 auto create_semaphores(::vk::Device &device, size_t size)
     -> ::std::vector<::vk::Semaphore>;

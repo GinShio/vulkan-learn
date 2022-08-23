@@ -1,20 +1,18 @@
 #include "create.hpp"
+#include "scope_guard.hpp"
 
-#include <algorithm>
 #include <assert.h>
 
+#include <algorithm>
 #include <initializer_list>
+#include <iterator>
+#include <limits>
+#include <utility>
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
 
-#include <limits>
-#include <utility>
 #include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_core.h>
-#include <vulkan/vulkan_enums.hpp>
-#include <vulkan/vulkan_handles.hpp>
-#include <vulkan/vulkan_structs.hpp>
 
 #ifdef DEBUG
 #include <iostream>
@@ -245,13 +243,6 @@ auto create_image_views(::vk::Device &device,
   return views;
 }
 
-auto create_pipeline_layout(::vk::Device &device) -> ::vk::PipelineLayout {
-  ::vk::PipelineLayoutCreateInfo info;
-  ::vk::PipelineLayout layout = device.createPipelineLayout(info);
-  assert(layout && "pipeline layout create failed!");
-  return layout;
-}
-
 auto create_frame_buffers(::vk::Device &device,
                           ::std::vector<::vk::ImageView> &views,
                           ::vk::RenderPass &render_pass,
@@ -273,6 +264,15 @@ auto create_frame_buffers(::vk::Device &device,
   return buffers;
 }
 
+auto allocate_command_buffers(::vk::Device &device, ::vk::CommandPool &pool,
+                              size_t sz) -> ::std::vector<::vk::CommandBuffer> {
+  ::vk::CommandBufferAllocateInfo alloc_info;
+  alloc_info.setLevel(::vk::CommandBufferLevel::ePrimary)
+      .setCommandPool(pool)
+      .setCommandBufferCount(sz);
+  return device.allocateCommandBuffers(alloc_info);
+}
+
 auto create_buffer(::vk::Device &device, QueueFamilyIndices &indices,
                    size_t size, ::vk::BufferUsageFlags flag) -> ::vk::Buffer {
   ::vk::BufferCreateInfo info;
@@ -286,23 +286,45 @@ auto create_buffer(::vk::Device &device, QueueFamilyIndices &indices,
   return buffer;
 }
 
+//! @brief allocate memory, and bind one buffer
+auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
+                     ::vk::Buffer &buffer, ::vk::MemoryPropertyFlags flag)
+    -> ::vk::DeviceMemory {
+  auto requirement = device.getBufferMemoryRequirements(buffer);
+  auto property = physical.getMemoryProperties();
+  decltype(property.memoryTypeCount) index{property.memoryTypeCount};
+  for (decltype(property.memoryTypeCount) i = 0; i < property.memoryTypeCount;
+       ++i) {
+    if (requirement.memoryTypeBits & (1 << i) &&
+        property.memoryTypes[i].propertyFlags & flag) {
+      index = i;
+      break;
+    }
+  }
+  ::vk::MemoryAllocateInfo info;
+  info.setAllocationSize(requirement.size).setMemoryTypeIndex(index);
+  ::vk::DeviceMemory memory = device.allocateMemory(info);
+  assert(memory && "device memory allocate failed!");
+  device.bindBufferMemory(buffer, memory, 0);
+  return memory;
+}
+
+//! @brief allocate memory, and bind multi buffers
 auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
                      ::std::vector<::vk::Buffer> const &buffers,
                      ::vk::MemoryPropertyFlags flag) -> ::vk::DeviceMemory {
+  // get memory properties: allocation size and type index
   auto property = physical.getMemoryProperties();
   decltype(property.memoryHeapCount) index{property.memoryTypeCount};
   ::vk::DeviceSize size{0};
   for (auto &buffer : buffers) {
     auto requirement = device.getBufferMemoryRequirements(buffer);
-    size +=
-        (requirement.size / requirement.alignment +
-         static_cast<size_t>(requirement.size % requirement.alignment != 0)) *
-        requirement.alignment;
-
+    size += (requirement.size + requirement.alignment - 1) /
+            requirement.alignment * requirement.alignment;
     if (index != property.memoryTypeCount) {
       continue;
     }
-    for (decltype(property.memoryHeapCount) i = 0; i < property.memoryTypeCount;
+    for (decltype(property.memoryTypeCount) i = 0; i < property.memoryTypeCount;
          ++i) {
       if (requirement.memoryTypeBits & (1 << i) &&
           property.memoryTypes[i].propertyFlags & flag) {
@@ -312,22 +334,75 @@ auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
     }
   }
 
+  // allocate memory
   ::vk::MemoryAllocateInfo info;
   info.setAllocationSize(size).setMemoryTypeIndex(index);
-
   ::vk::DeviceMemory memory = device.allocateMemory(info);
   assert(memory && "device memory allocate failed!");
 
+  ::std::vector<::vk::Buffer> device_buffers;
   ::vk::DeviceSize offset{0};
   for (auto &buffer : buffers) {
     auto requirement = device.getBufferMemoryRequirements(buffer);
     device.bindBufferMemory(buffer, memory, offset);
-    offset +=
-        (requirement.size / requirement.alignment +
-         static_cast<size_t>(requirement.size % requirement.alignment != 0)) *
-        requirement.alignment;
+    device_buffers.emplace_back(buffer);
+    offset += (requirement.size + requirement.alignment - 1) /
+              requirement.alignment * requirement.alignment;
   }
   return memory;
+}
+
+//! @brief allocate memory, bind multi buffers, and copy buffers
+auto allocate_memory(
+    ::vk::PhysicalDevice &physical, ::vk::Device &device,
+    ::vk::CommandPool &pool, ::vk::Queue &queue,
+    ::std::vector<::std::tuple<::vk::Buffer, ::vk::DeviceMemory,
+                               ::vk::Buffer>> const &buffers,
+    ::vk::MemoryPropertyFlags flag)
+    -> ::std::pair<::std::vector<::vk::Buffer>, ::vk::DeviceMemory> {
+  ::std::vector<::vk::Buffer> device_buffers;
+  ::std::transform(buffers.begin(), buffers.end(),
+                   ::std::back_inserter(device_buffers),
+                   [](auto &val) { return ::std::get<2>(val); });
+  ::vk::DeviceMemory memory =
+      allocate_memory(physical, device, device_buffers, flag);
+
+  for (auto &[host_buffer, host_memory, device_buffer] : buffers) {
+    auto requirement = device.getBufferMemoryRequirements(device_buffer);
+    copy_buffer(device, pool, queue, host_buffer, device_buffer,
+                requirement.size);
+    // destroy host memory and host buffer
+    device.freeMemory(host_memory);
+    device.destroyBuffer(host_buffer);
+  }
+  return ::std::make_pair(::std::move(device_buffers), ::std::move(memory));
+}
+
+auto copy_data(::vk::Device &device, ::vk::DeviceMemory &memory, size_t offset,
+               size_t size, void *data) -> void {
+  void *buffer = device.mapMemory(memory, offset, size);
+  MAKE_SCOPE_GUARD {
+    device.unmapMemory(memory);
+    device.waitIdle();
+  };
+  ::memcpy(buffer, data, size);
+}
+
+auto copy_buffer(::vk::Device &device, ::vk::CommandPool &pool,
+                 ::vk::Queue &queue, ::vk::Buffer const &src,
+                 ::vk::Buffer const &dest, ::vk::DeviceSize size) -> void {
+  auto transfer_cmd_buffers = allocate_command_buffers(device, pool, 1);
+  ::vk::CommandBufferBeginInfo begin_info;
+  begin_info.setFlags(::vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+  MAKE_SCOPE_GUARD { device.freeCommandBuffers(pool, transfer_cmd_buffers); };
+  transfer_cmd_buffers.front().begin(begin_info);
+  transfer_cmd_buffers.front().copyBuffer(src, dest,
+                                          ::vk::BufferCopy{0, 0, size});
+  transfer_cmd_buffers.front().end();
+  ::vk::SubmitInfo submit_info;
+  submit_info.setCommandBuffers(transfer_cmd_buffers);
+  queue.submit(submit_info);
+  device.waitIdle();
 }
 
 auto create_semaphores(::vk::Device &device, size_t sz)

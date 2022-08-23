@@ -14,6 +14,8 @@ private:
 
   auto get_vertex_input_description() -> decltype(auto);
 
+  auto create_pipeline_layout() -> ::vk::PipelineLayout;
+
   auto record_command(::vk::CommandBuffer &cbuf, ::vk::Framebuffer &fbuf)
       -> void;
 
@@ -21,17 +23,14 @@ private:
 
 private:
   size_t current_frame_{0};
-  ::vk::PipelineLayout layout_{nullptr};
   ::vk::RenderPass render_pass_{nullptr};
   ::vk::Pipeline pipeline_{nullptr};
   ::vk::CommandPool cmd_pool_{nullptr};
-
-  ::vk::Buffer vertex_buffer_{nullptr};
-  ::vk::Buffer index_buffer_{nullptr};
   ::vk::DeviceMemory device_memory_{nullptr};
 
   ::std::vector<::vk::Framebuffer> framebuffers_;
   ::std::vector<::vk::CommandBuffer> cmd_buffers_;
+  ::std::vector<::vk::Buffer> device_buffers_;
   ::std::vector<::vk::Semaphore> image_avaliables_;
   ::std::vector<::vk::Semaphore> present_finishes_;
   ::std::vector<::vk::Fence> fences_;

@@ -10,23 +10,21 @@
 #include <limits>
 
 #include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_enums.hpp>
-#include <vulkan/vulkan_handles.hpp>
-#include <vulkan/vulkan_structs.hpp>
 
 template <typename App> class Renderer {
 public:
   auto init(::std::filesystem::path const &shader_path) -> void;
 
-  auto create_shader_module(::std::filesystem::path const &filename)
-      -> ::vk::ShaderModule;
-  auto create_vf_pipeline(::vk::ShaderModule const &vert,
-                          ::vk::ShaderModule const &frag) -> ::vk::Pipeline;
-
   auto run() -> void;
   auto destroy() -> void;
 
   static auto render(Renderer<App> *app) -> void;
+
+protected:
+  auto create_shader_module(::std::filesystem::path const &filename)
+      -> ::vk::ShaderModule;
+  auto create_vf_pipeline(::vk::ShaderModule const &vert,
+                          ::vk::ShaderModule const &frag) -> ::vk::Pipeline;
 
 private:
   auto underlying() -> App * { return reinterpret_cast<App *>(this); }
@@ -43,6 +41,7 @@ protected:
   ::vk::Queue present_queue_{nullptr};
   ::vk::SwapchainKHR swapchain_{nullptr};
   SwapchainRequiredInfo required_info_;
+  ::vk::PipelineLayout layout_{nullptr};
 
   ::std::vector<::vk::Image> images_;
   ::std::vector<::vk::ImageView> image_views_;
@@ -116,6 +115,7 @@ auto Renderer<App>::create_vf_pipeline(::vk::ShaderModule const &vert,
       .setPrimitiveRestartEnable(false);
 
   // layout
+  this->layout_ = this->underlying()->create_pipeline_layout();
 
   // viewport and scissor
   ::vk::Viewport viewport{
@@ -161,7 +161,7 @@ auto Renderer<App>::create_vf_pipeline(::vk::ShaderModule const &vert,
   info.setStages(stage_infos)
       .setPVertexInputState(&vertex_input)
       .setPInputAssemblyState(&input_asm)
-      .setLayout(this->underlying()->layout_)
+      .setLayout(this->layout_)
       .setPViewportState(&viewport_state)
       .setPRasterizationState(&rast_info)
       .setPMultisampleState(&multi_info)
@@ -182,6 +182,7 @@ template <typename App> auto Renderer<App>::run() -> void {
 template <typename App> auto Renderer<App>::destroy() -> void {
   this->underlying()->app_destroy();
 
+  this->device_.destroyPipelineLayout(this->layout_);
   for (auto &shader : this->shader_modules_) {
     this->device_.destroyShaderModule(shader);
   }
