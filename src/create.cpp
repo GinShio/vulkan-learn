@@ -8,6 +8,7 @@
 #include <iterator>
 #include <limits>
 #include <utility>
+#include <vector>
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
@@ -17,6 +18,12 @@
 #ifdef DEBUG
 #include <iostream>
 #endif
+
+namespace {
+template <typename Int> auto gcd(Int a, Int b) -> Int {
+  return !b ? a : gcd(b, a % b);
+}
+} // namespace
 
 auto create_instance(Window &window,
                      ::std::vector<char const *> const &app_extensions)
@@ -63,9 +70,10 @@ auto create_instance(Window &window,
 
 auto create_surface(Window &window, ::vk::Instance &instance)
     -> ::vk::SurfaceKHR {
-  VkSurfaceKHR surface;
-  assert(SDL_Vulkan_CreateSurface(window.get_window(), instance, &surface) &&
-         "surface create failed!");
+  VkSurfaceKHR surface{nullptr};
+  [[maybe_unused]] auto result =
+      SDL_Vulkan_CreateSurface(window.get_window(), instance, &surface);
+  assert(result && "surface create failed!");
   return surface;
 }
 
@@ -274,7 +282,8 @@ auto allocate_command_buffers(::vk::Device &device, ::vk::CommandPool &pool,
 }
 
 auto create_buffer(::vk::Device &device, QueueFamilyIndices &indices,
-                   size_t size, ::vk::BufferUsageFlags flag) -> ::vk::Buffer {
+                   ::vk::DeviceSize size, ::vk::BufferUsageFlags flag)
+    -> ::vk::Buffer {
   ::vk::BufferCreateInfo info;
   info.setSharingMode(::vk::SharingMode::eExclusive)
       .setQueueFamilyIndices(indices.graphics_indices.value())
@@ -316,21 +325,24 @@ auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
   // get memory properties: allocation size and type index
   auto property = physical.getMemoryProperties();
   decltype(property.memoryHeapCount) index{property.memoryTypeCount};
+
+  uint32_t memory_type = ::std::numeric_limits<uint32_t>::max();
   ::vk::DeviceSize size{0};
   for (auto &buffer : buffers) {
     auto requirement = device.getBufferMemoryRequirements(buffer);
     size += (requirement.size + requirement.alignment - 1) /
             requirement.alignment * requirement.alignment;
-    if (index != property.memoryTypeCount) {
-      continue;
+    if (gcd(size, requirement.alignment) != requirement.alignment) {
+      size = ((size / requirement.alignment) + 1) * requirement.alignment;
     }
-    for (decltype(property.memoryTypeCount) i = 0; i < property.memoryTypeCount;
-         ++i) {
-      if (requirement.memoryTypeBits & (1 << i) &&
-          property.memoryTypes[i].propertyFlags & flag) {
-        index = i;
-        break;
-      }
+    memory_type &= requirement.memoryTypeBits;
+  }
+  for (decltype(property.memoryTypeCount) i = 0; i < property.memoryTypeCount;
+       ++i) {
+    if (memory_type & (1 << i) &&
+        property.memoryTypes[i].propertyFlags & flag) {
+      index = i;
+      break;
     }
   }
 
@@ -342,12 +354,21 @@ auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
 
   ::std::vector<::vk::Buffer> device_buffers;
   ::vk::DeviceSize offset{0};
-  for (auto &buffer : buffers) {
-    auto requirement = device.getBufferMemoryRequirements(buffer);
-    device.bindBufferMemory(buffer, memory, offset);
-    device_buffers.emplace_back(buffer);
-    offset += (requirement.size + requirement.alignment - 1) /
-              requirement.alignment * requirement.alignment;
+  for (decltype(::std::declval<decltype(buffers)>().size()) i = 0,
+                                                            e = buffers.size();
+       i < e; ++i) {
+    device.bindBufferMemory(buffers[i], memory, offset);
+    device_buffers.emplace_back(buffers[i]);
+    if (i + 1 == e) {
+      continue;
+    }
+    auto curr = device.getBufferMemoryRequirements(buffers[i]);
+    auto next = device.getBufferMemoryRequirements(buffers[i + 1]);
+    offset +=
+        (curr.size + next.alignment - 1) / next.alignment * next.alignment;
+    if (gcd(offset, next.alignment) != next.alignment) {
+      offset = ((offset / next.alignment) + 1) * next.alignment;
+    }
   }
   return memory;
 }
@@ -356,8 +377,8 @@ auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
 auto allocate_memory(
     ::vk::PhysicalDevice &physical, ::vk::Device &device,
     ::vk::CommandPool &pool, ::vk::Queue &queue,
-    ::std::vector<::std::tuple<::vk::Buffer, ::vk::DeviceMemory,
-                               ::vk::Buffer>> const &buffers,
+    ::std::vector<::std::tuple<::vk::Buffer, ::vk::DeviceMemory, ::vk::Buffer,
+                               ::vk::DeviceSize>> const &buffers,
     ::vk::MemoryPropertyFlags flag)
     -> ::std::pair<::std::vector<::vk::Buffer>, ::vk::DeviceMemory> {
   ::std::vector<::vk::Buffer> device_buffers;
@@ -367,10 +388,10 @@ auto allocate_memory(
   ::vk::DeviceMemory memory =
       allocate_memory(physical, device, device_buffers, flag);
 
-  for (auto &[host_buffer, host_memory, device_buffer] : buffers) {
-    auto requirement = device.getBufferMemoryRequirements(device_buffer);
-    copy_buffer(device, pool, queue, host_buffer, device_buffer,
-                requirement.size);
+  // NOTE: in windows, buffer requirement size not equal needed size, copy
+  // buffer will warning
+  for (auto &[host_buffer, host_memory, device_buffer, size] : buffers) {
+    copy_buffer(device, pool, queue, host_buffer, device_buffer, size);
     // destroy host memory and host buffer
     device.freeMemory(host_memory);
     device.destroyBuffer(host_buffer);
@@ -379,7 +400,7 @@ auto allocate_memory(
 }
 
 auto copy_data(::vk::Device &device, ::vk::DeviceMemory &memory, size_t offset,
-               size_t size, void *data) -> void {
+               size_t size, void const *data) -> void {
   void *buffer = device.mapMemory(memory, offset, size);
   MAKE_SCOPE_GUARD {
     device.unmapMemory(memory);

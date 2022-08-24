@@ -26,6 +26,8 @@ public:
   auto get_window() -> SDL_Window *;
   auto get_window() const -> SDL_Window const *;
 
+  auto get_size() const -> ::std::pair<int, int>;
+
   auto get_extensions() -> ::std::vector<char const *>;
 
 private:
@@ -43,8 +45,8 @@ inline auto Window::main_loop(App *app, void (*func)(App *)) -> void {
       if (this->event_.type == SDL_QUIT) {
         this->is_quited_ = true;
       }
-      func(app);
     }
+    func(app);
   }
 }
 

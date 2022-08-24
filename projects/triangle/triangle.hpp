@@ -24,9 +24,13 @@ private:
 private:
   size_t current_frame_{0};
   ::vk::RenderPass render_pass_{nullptr};
-  ::vk::Pipeline pipeline_{nullptr};
   ::vk::CommandPool cmd_pool_{nullptr};
   ::vk::DeviceMemory device_memory_{nullptr};
+
+  ::vk::DescriptorSetLayout set_layout_{nullptr};
+  ::vk::DescriptorPool desc_pool_{nullptr};
+  ::vk::DescriptorSet desc_set_{nullptr};
+  ::vk::Pipeline pipeline_{nullptr};
 
   ::std::vector<::vk::Framebuffer> framebuffers_;
   ::std::vector<::vk::CommandBuffer> cmd_buffers_;

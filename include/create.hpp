@@ -63,11 +63,9 @@ auto create_frame_buffers(::vk::Device &device,
 auto allocate_command_buffers(::vk::Device &device, ::vk::CommandPool &pool,
                               size_t sz) -> ::std::vector<::vk::CommandBuffer>;
 
-auto copy_data(::vk::Device &device, ::vk::DeviceMemory &memory, size_t offset,
-               size_t size, void *data) -> void;
-
 auto create_buffer(::vk::Device &device, QueueFamilyIndices &indices,
-                   size_t size, ::vk::BufferUsageFlags flag) -> ::vk::Buffer;
+                   ::vk::DeviceSize size, ::vk::BufferUsageFlags flag)
+    -> ::vk::Buffer;
 
 auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
                      ::vk::Buffer &buffer, ::vk::MemoryPropertyFlags flag)
@@ -80,10 +78,13 @@ auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
 auto allocate_memory(
     ::vk::PhysicalDevice &physical, ::vk::Device &device,
     ::vk::CommandPool &pool, ::vk::Queue &queue,
-    ::std::vector<::std::tuple<::vk::Buffer, ::vk::DeviceMemory,
-                               ::vk::Buffer>> const &buffers,
+    ::std::vector<::std::tuple<::vk::Buffer, ::vk::DeviceMemory, ::vk::Buffer,
+                               ::vk::DeviceSize>> const &buffers,
     ::vk::MemoryPropertyFlags flag)
     -> ::std::pair<::std::vector<::vk::Buffer>, ::vk::DeviceMemory>;
+
+auto copy_data(::vk::Device &device, ::vk::DeviceMemory &memory, size_t offset,
+               size_t size, void const *data) -> void;
 
 auto copy_buffer(::vk::Device &device, ::vk::CommandPool &pool,
                  ::vk::Queue &queue, ::vk::Buffer const &src,

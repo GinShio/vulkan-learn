@@ -1,5 +1,7 @@
 #include "window.hpp"
 
+#include <utility>
+
 namespace {
 
 ::std::string const default_name{"SDL_Vulkan"};
@@ -30,6 +32,12 @@ Window::Window(::std::string const &name, int width, int height, Uint32 flags)
 
 auto Window::get_window() -> SDL_Window * { return this->window_; }
 auto Window::get_window() const -> SDL_Window const * { return this->window_; }
+
+auto Window::get_size() const -> ::std::pair<int, int> {
+  int width, height;
+  SDL_GetWindowSize(this->window_, &width, &height);
+  return ::std::make_pair(width, height);
+}
 
 auto Window::get_extensions() -> ::std::vector<char const *> {
   unsigned int count{0};
