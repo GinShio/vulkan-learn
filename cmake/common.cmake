@@ -27,18 +27,27 @@ endif()
 
 find_package(PkgConfig REQUIRED)
 pkg_search_module(VULKAN REQUIRED IMPORTED_TARGET vulkan)
+pkg_search_module(SDL REQUIRED IMPORTED_TARGET sdl2)
 
 include_directories(
   ${VULKAN_INCLUDE_DIRS}
+  ${SDL_INCLUDE_DIRS}
   )
 
 add_compile_options(
   ${VULKAN_CFLAGS_OTHER}
+  ${SDL_CFLAGS_OTHER}
   )
 
 link_libraries(
   PkgConfig::VULKAN
+  PkgConfig::SDL
   )
+
+if(WIN32)
+  add_compile_definitions(SDL_MAIN_HANDLED)
+endif()
+
 
 if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   if(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
@@ -84,36 +93,3 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
     NDEBUG
     )
 endif()
-
-function(target_add_window_library
-    TARGET_NAME
-    )
-  set(options INTERFACE PUBLIC PRIVATE GLFW SDL)
-  set(one_value_args)
-  set(multi_value_args)
-  cmake_parse_arguments(WINDOW_LIB "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
-  set(WINDOW_LIB_PROPERTY)
-  if(WINDOW_LIB_PRIVATE)
-    set(WINDOW_LIB_PROPERTY "PRIVATE")
-  elseif(WINDOW_LIB_INTERFACE)
-    set(WINDOW_LIB_PROPERTY "INTERFACE")
-  else()
-    set(WINDOW_LIB_PROPERTY "PUBLIC")
-  endif()
-  if(WINDOW_LIB_GLFW)
-    pkg_search_module(GLFW REQUIRED IMPORTED_TARGET glfw3)
-    target_include_directories(${TARGET_NAME} PUBLIC ${GLFW_INCLUDE_DIRS})
-    target_compile_options(${TARGET_NAME} ${WINDOW_LIB_PROPERTY} ${GLFW_CFLAGS_OTHER})
-    target_link_libraries(${TARGET_NAME} ${WINDOW_LIB_PROPERTY} PkgConfig::GLFW)
-    target_compile_definitions(${TARGET_NAME} PUBLIC GLFW_INCLUDE_VULKAN)
-  endif()
-  if(WINDOW_LIB_SDL)
-    pkg_search_module(SDL REQUIRED IMPORTED_TARGET sdl2)
-    target_include_directories(${TARGET_NAME} PUBLIC ${SDL_INCLUDE_DIRS})
-    target_compile_options(${TARGET_NAME} ${WINDOW_LIB_PROPERTY} ${SDL_CFLAGS_OTHER})
-    target_link_libraries(${TARGET_NAME} ${WINDOW_LIB_PROPERTY} PkgConfig::SDL)
-    if(WIN32)
-      target_compile_definitions(${TARGET_NAME} PUBLIC SDL_MAIN_HANDLED)
-    endif()
-  endif()
-endfunction()

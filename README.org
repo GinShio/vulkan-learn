@@ -7,8 +7,8 @@ Learning vulkan C++ binding repo
 ** requirement
 
   + Vulkan
-  + GLFW (only VulkanTest)
   + SDL2
+  + GLM
   + pkgconfig
     * download pkg-config and dependencies if Windows
       - [[https://download.gnome.org/binaries/win32/dependencies/pkg-config_0.26-1_win32.zip][pkg-config_0.26-1]]
@@ -16,7 +16,6 @@ Learning vulkan C++ binding repo
       - [[https://download.gnome.org/binaries/win32/dependencies/gettext-runtime_0.18.1.1-2_win32.zip][gettext-runtime_0.18.1.1-2]]
     * write ~.pc~ file
       - vulkan.pc
-      - glfw.pc (only VulkanTest)
       - sdl2.pc
     * set environment variable =PKG_CONFIG_PATH=
   + cmake

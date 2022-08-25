@@ -28,11 +28,11 @@ static ::std::array<uint16_t, 3> indices{0, 1, 2};
 
 static MVP ebo{
     // model
-    Mat4::get_eye(),
+    ::glm::mat4{1.f},
     // view
-    Mat4::get_eye(),
+    ::glm::mat4{1.f},
     // project
-    Mat4::get_eye(),
+    ::glm::mat4{1.f},
 };
 
 static constexpr float DELTA{0.8e-3f};

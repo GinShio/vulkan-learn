@@ -15,5 +15,3 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 target_sources(${PROJECT_NAME} PRIVATE
   main.cpp
   )
-
-target_add_window_library(${PROJECT_NAME} PRIVATE GLFW)

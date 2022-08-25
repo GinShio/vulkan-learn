@@ -15,5 +15,3 @@ target_sources(${TARGET_NAME} PRIVATE
 
 target_link_libraries(${TARGET_NAME} PRIVATE
   )
-
-target_add_window_library(${TARGET_NAME} PRIVATE SDL)
