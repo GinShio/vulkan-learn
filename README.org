@@ -1,5 +1,3 @@
-#+title: README
-
 * Vulkan-Learn
 
 Learning vulkan C++ binding repo
@@ -31,9 +29,9 @@ Learning vulkan C++ binding repo
 │   ├── test
 │   └── triangle
 ├── README.org
-└── src
+├── src
+└── video
 #+end_example
-
 
 + cmake :: cmake files
 + include :: common utility definition
@@ -43,6 +41,7 @@ Learning vulkan C++ binding repo
   | test     | VulkanTest     | test vulkan SDK                     |
   | triangle | VulkanTriangle | draw a triangle (learn VF pipeline) |
 + src :: common utility implement, target =VulkanBase=
++ video :: project display
 
 ** .pc file
 .pc file is libraries configuration file, it record the library's

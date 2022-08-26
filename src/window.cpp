@@ -30,6 +30,19 @@ Window::Window(::std::string const &name, int width, int height, Uint32 flags)
     : window_{SDL_CreateWindow(name.c_str(), SDL_WINDOWPOS_CENTERED,
                                SDL_WINDOWPOS_CENTERED, width, height, flags)} {}
 
+Window::Window(Window &&other) noexcept
+    : window_{other.window_}, event_{other.event_}, is_quited_{
+                                                        other.is_quited_} {
+  other.window_ = nullptr;
+}
+
+Window &Window::operator=(Window &&other) noexcept {
+  ::std::swap(this->window_, other.window_);
+  ::std::swap(this->event_, other.event_);
+  ::std::swap(this->is_quited_, other.is_quited_);
+  return *this;
+}
+
 auto Window::get_window() -> SDL_Window * { return this->window_; }
 auto Window::get_window() const -> SDL_Window const * { return this->window_; }
 
@@ -49,6 +62,7 @@ auto Window::get_extensions() -> ::std::vector<char const *> {
 }
 
 Window::~Window() {
-  SDL_DestroyWindow(this->window_);
-  SDL_Quit();
+  if (this->window_ != nullptr) {
+    SDL_DestroyWindow(this->window_);
+  }
 }

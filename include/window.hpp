@@ -15,10 +15,10 @@ public:
   explicit Window(Uint32 flags);
   Window(int width, int height);
   Window(::std::string const &name, int width, int height, Uint32 flags);
-  Window(Window const &) = default;
-  Window(Window &&) noexcept = default;
-  Window &operator=(Window const &) = default;
-  Window &operator=(Window &&) noexcept = default;
+  Window(Window const &) = delete;
+  Window(Window &&other) noexcept;
+  Window &operator=(Window const &) = delete;
+  Window &operator=(Window &&other) noexcept;
   ~Window();
 
   template <typename App> auto main_loop(App *app, void (*func)(App *)) -> void;

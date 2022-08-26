@@ -193,6 +193,8 @@ template <typename App> auto Renderer<App>::destroy() -> void {
   this->device_.destroy();
   this->instance_.destroySurfaceKHR(this->surface_);
   this->instance_.destroy();
+
+  SDL_Quit();
 }
 
 template <typename App> auto Renderer<App>::render(Renderer<App> *app) -> void {
