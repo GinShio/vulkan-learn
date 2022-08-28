@@ -79,45 +79,71 @@ Libs.private:  -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc
 Cflags: -I${includedir}
 #+end_example
 
-** build
+Good. setup environment variable =PKG_CONFIG_PATH=.
 
-+ Windows with MSVC (don't setup the pkg-config's environment variable)
-  #+begin_src shell
-cmake -S. -Bcmake-build-debug -DCMAKE_BUILD_TYPE=Debug -DPKG_CONFIG_PATH=/path/to/pc-file
-  #+end_src
-
-+ Unix with =Ninja=
-  #+begin_src shell
-cmake -S. -Bcmake-build-debug -GNinja -DCMAKE_BUILD_TYPE=Debug
-  #+end_src
-
-+ Unix with =Makefile=
-  #+begin_src shell
-cmake -S. -Bcmake-build-debug -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug
-  #+end_src
-
-+ Unix and use clang
-  #+begin_src shell
-cmake -S. -Bcmake-build-debug -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-  #+end_src
-
-And then, build the projects
+** build and run
+*** cmake
+cmake need to special the source directory, build directory, and build tool
+(default is =Unix Makefiles=), you can use the below command to generate build script
 #+begin_src shell
-cmake --build cmake-build-debug
+cmake -S. -Bbuild -GNinja
 #+end_src
 
-If you just want to build the vulkan-triangle, run command
+set build release mode
 #+begin_src shell
-cmake --build cmake-build-debug --target VulkanTriangle
+cmake -S. -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release
 #+end_src
 
-** run
-Except project =VulkanTest=, other projects need command flag -- shader path,
-spir-v file build and generate to =${CMAKE_BUILD_DIR}/shader/${TARGET_NAME}=.
-
-e.g. run VulkanTriangle
+use clang toolchains not gcc
 #+begin_src shell
-cmake-build-debug/bin/VulkanTriangle cmake-build-debug/shader/VulkanTriangle
+cmake -S. -Bbuild -GNinja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+#+end_src
+
+Okay, generated the build script, you can build your application
+#+begin_src shell
+cmake --build build
+#+end_src
+
+if you want to special the target, run
+#+begin_src shell
+cmake --build build --target TARGET_NAME
+#+end_src
+
+Nice, generated and built the application, next run it! But cmake not provide
+=run= command, you must run it manually
+#+begin_src shell
+build/bin/VulkanTest
+#+end_src
+
+*** xmake
+if you want to build the application by xmake, run below command
+#+begin_src shell
+xmake build
+#+end_src
+
+next, special target
+#+begin_src shell
+xmake build TARGET_NAME
+#+end_src
+
+set debug mode or release mode, you need
+#+begin_src shell
+xmake f --mode=debug
+#+end_src
+
+if you want to use clang toolchain
+#+begin_src shell
+xmake f --toolchain=clang
+#+end_src
+
+if you need =compile_command=, run
+#+begin_src shell
+xmake project -k compile_commands
+#+end_src
+
+last, run the application
+#+begin_src shell
+xmake run TARGET_NAME
 #+end_src
 
 ** C++ technical

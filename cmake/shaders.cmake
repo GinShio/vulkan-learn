@@ -15,15 +15,18 @@
 
 include_guard()
 
-#
-# glslangValidator
-#
-find_program(GLSLANGVALIDATOR_EXE "glslangValidator")
-mark_as_advanced(FORCE GLSLANGVALIDATOR_EXE)
-if(GLSLANGVALIDATOR_EXE)
-  message(STATUS "glslangValidator found: ${GLSLANGVALIDATOR_EXE}")
+find_program(GLSLCompiler_EXE NAMES "glslangValidator" "glslc")
+mark_as_advanced(FORCE GLSLCompiler_EXE)
+if(GLSLCompiler_EXE)
+  message(STATUS "glsl compiler found: ${GLSLCompiler_EXE}")
 else()
-  message(STATUS "glslangValidator not found!")
+  message(FATAL_ERROR "glsl compiler not found!")
+endif()
+
+if("${GLSLCompiler_EXE}" MATCHES ".*glslangValidator")
+  set(GLSLCompiler_DEFAULT_FLAGS --target-env vulkan1.0 -V)
+else()
+  set(GLSLCompiler_DEFAULT_FLAGS --target-env=vulkan)
 endif()
 
 # This function acts much like the 'target_sources' function, as in raw GLSL
@@ -54,13 +57,7 @@ endif()
 #       PRIVATE test.vert test.frag
 #       COMPILE_OPTIONS --target-env vulkan1.1)
 # ~~~
-function(target_glsl_shaders TARGET_NAME)
-  if(NOT GLSLANGVALIDATOR_EXE)
-    message(
-      FATAL_ERROR "Cannot compile GLSL to SPIR-V is glslangValidator not found!"
-    )
-  endif()
-
+function(target_glsl_shaders TARGET_NAME FILETYPE)
   set(SHADER_OUTPUT_DIR "${CMAKE_SHADERS_OUTPUT_DIRECTORY}/${TARGET_NAME}")
   if(NOT EXISTS ${SHADER_OUTPUT_DIR})
     make_directory(${SHADER_OUTPUT_DIR})
@@ -68,35 +65,17 @@ function(target_glsl_shaders TARGET_NAME)
 
   set(OPTIONS)
   set(SINGLE_VALUE_KEYWORDS)
-  set(MULTI_VALUE_KEYWORDS INTERFACE PUBLIC PRIVATE COMPILE_OPTIONS)
+  set(MULTI_VALUE_KEYWORDS FILES COMPILE_OPTIONS)
   cmake_parse_arguments(
     target_glsl_shaders "${OPTIONS}" "${SINGLE_VALUE_KEYWORDS}"
     "${MULTI_VALUE_KEYWORDS}" ${ARGN})
 
-  foreach(GLSL_FILE IN LISTS target_glsl_shaders_INTERFACE)
+  foreach(GLSL_FILE IN LISTS target_glsl_shaders_FILES)
     add_custom_command(
       OUTPUT ${GLSL_FILE}.spv
-      COMMAND ${GLSLANGVALIDATOR_EXE} ${target_glsl_shaders_COMPILE_OPTIONS} -V
-              "${CMAKE_CURRENT_SOURCE_DIR}/${GLSL_FILE}" -o "${SHADER_OUTPUT_DIR}/${GLSL_FILE}.spv"
+      COMMAND ${GLSLCompiler_EXE} ${GLSLCompiler_DEFAULT_FLAGS} ${target_glsl_shaders_COMPILE_OPTIONS}
+      -o "${SHADER_OUTPUT_DIR}/${GLSL_FILE}.spv" "${CMAKE_CURRENT_SOURCE_DIR}/${GLSL_FILE}"
       MAIN_DEPENDENCY ${GLSL_FILE})
-    target_sources(${TARGET_NAME} INTERFACE ${GLSL_FILE}.spv)
-  endforeach()
-
-  foreach(GLSL_FILE IN LISTS target_glsl_shaders_PUBLIC)
-    add_custom_command(
-      OUTPUT ${GLSL_FILE}.spv
-      COMMAND ${GLSLANGVALIDATOR_EXE} ${target_glsl_shaders_COMPILE_OPTIONS} -V
-              "${CMAKE_CURRENT_SOURCE_DIR}/${GLSL_FILE}" -o "${SHADER_OUTPUT_DIR}/${GLSL_FILE}.spv"
-      MAIN_DEPENDENCY ${GLSL_FILE})
-    target_sources(${TARGET_NAME} PUBLIC ${GLSL_FILE}.spv)
-  endforeach()
-
-  foreach(GLSL_FILE IN LISTS target_glsl_shaders_PRIVATE)
-    add_custom_command(
-      OUTPUT ${GLSL_FILE}.spv
-      COMMAND ${GLSLANGVALIDATOR_EXE} ${target_glsl_shaders_COMPILE_OPTIONS} -V
-              "${CMAKE_CURRENT_SOURCE_DIR}/${GLSL_FILE}" -o "${SHADER_OUTPUT_DIR}/${GLSL_FILE}.spv"
-      MAIN_DEPENDENCY ${GLSL_FILE})
-    target_sources(${TARGET_NAME} PRIVATE ${GLSL_FILE}.spv)
+    target_sources(${TARGET_NAME} ${FILETYPE} ${GLSL_FILE}.spv)
   endforeach()
 endfunction()

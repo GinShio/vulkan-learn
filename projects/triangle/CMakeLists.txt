@@ -23,8 +23,5 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   )
 
 target_glsl_shaders(${PROJECT_NAME} PRIVATE
-  main.vert
-  main.frag
-
-  COMPILE_OPTIONS --target-env vulkan1.0
+  FILES main.vert main.frag
   )
