@@ -71,10 +71,11 @@ function(target_glsl_shaders TARGET_NAME FILETYPE)
     "${MULTI_VALUE_KEYWORDS}" ${ARGN})
 
   foreach(GLSL_FILE IN LISTS target_glsl_shaders_FILES)
+    get_filename_component(SPRV_FILENAME ${GLSL_FILE} NAME)
     add_custom_command(
       OUTPUT ${GLSL_FILE}.spv
       COMMAND ${GLSLCompiler_EXE} ${GLSLCompiler_DEFAULT_FLAGS} ${target_glsl_shaders_COMPILE_OPTIONS}
-      -o "${SHADER_OUTPUT_DIR}/${GLSL_FILE}.spv" "${CMAKE_CURRENT_SOURCE_DIR}/${GLSL_FILE}"
+      -o "${SHADER_OUTPUT_DIR}/${SPRV_FILENAME}.spv" "${CMAKE_CURRENT_SOURCE_DIR}/${GLSL_FILE}"
       MAIN_DEPENDENCY ${GLSL_FILE})
     target_sources(${TARGET_NAME} ${FILETYPE} ${GLSL_FILE}.spv)
   endforeach()

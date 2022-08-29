@@ -27,7 +27,8 @@ Learning vulkan C++ binding repo
 ├── projects
 │   ├── CMakeLists.txt
 │   ├── test
-│   └── triangle
+│   ├── triangle
+│   └── canvas
 ├── README.org
 ├── src
 └── video
@@ -40,6 +41,7 @@ Learning vulkan C++ binding repo
   |----------+----------------+-------------------------------------|
   | test     | VulkanTest     | test vulkan SDK                     |
   | triangle | VulkanTriangle | draw a triangle (learn VF pipeline) |
+  | canvas   | VulkanCanvas   | glslang fs canvas                   |
 + src :: common utility implement, target =VulkanBase=
 + video :: project display
 
@@ -143,7 +145,7 @@ xmake project -k compile_commands
 
 last, run the application
 #+begin_src shell
-xmake run TARGET_NAME
+xmake run -w. TARGET_NAME
 #+end_src
 
 ** C++ technical
