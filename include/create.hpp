@@ -60,6 +60,10 @@ auto create_frame_buffers(::vk::Device &device,
                           SwapchainRequiredInfo &required_info)
     -> ::std::vector<::vk::Framebuffer>;
 
+auto create_command_pool(::vk::Device &device,
+                         QueueFamilyIndices &queue_indices)
+    -> ::vk::CommandPool;
+
 auto allocate_command_buffers(::vk::Device &device, ::vk::CommandPool &pool,
                               size_t sz) -> ::std::vector<::vk::CommandBuffer>;
 

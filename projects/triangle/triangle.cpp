@@ -15,6 +15,8 @@
 
 #include <vulkan/vulkan.hpp>
 
+extern ::std::filesystem::path const shader_path;
+
 namespace {
 
 // triangle
@@ -66,16 +68,18 @@ auto create_render_pass(::vk::Device &device,
   return render_pass;
 }
 
-auto create_command_pool(::vk::Device &device,
-                         QueueFamilyIndices &queue_indices)
-    -> ::vk::CommandPool {
-  ::vk::CommandPoolCreateInfo info;
-  info.setFlags(::vk::CommandPoolCreateFlagBits::eResetCommandBuffer)
-      .setQueueFamilyIndex(queue_indices.graphics_indices.value());
-
-  auto cmd_pool = device.createCommandPool(info);
-  assert(cmd_pool && "command pool create failed!");
-  return cmd_pool;
+auto create_pipeline_layout(::vk::Device &device,
+                            ::vk::DescriptorSetLayout &set_layout)
+    -> ::vk::PipelineLayout {
+  ::vk::PushConstantRange range;
+  range.setOffset(0)
+      .setStageFlags(::vk::ShaderStageFlagBits::eVertex)
+      .setSize(sizeof(float));
+  ::vk::PipelineLayoutCreateInfo info;
+  info.setSetLayouts(set_layout).setPushConstantRanges(range);
+  ::vk::PipelineLayout layout = device.createPipelineLayout(info);
+  assert(layout && "pipeline layout create failed!");
+  return layout;
 }
 
 auto create_descriptor_set_layout(::vk::Device &device)
@@ -144,16 +148,11 @@ auto wrap_buffer(::vk::PhysicalDevice &physical, ::vk::Device &device,
 
 } // namespace
 
-auto TriangleApplication::app_init(QueueFamilyIndices &queue_indices,
-                                   ::std::filesystem::path const &shader_path)
-    -> void {
+auto TriangleApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
   this->render_pass_ = create_render_pass(this->device_, this->required_info_);
   this->framebuffers_ =
       create_frame_buffers(this->device_, this->image_views_,
                            this->render_pass_, this->required_info_);
-  this->cmd_pool_ = create_command_pool(this->device_, queue_indices);
-  this->cmd_buffers_ = allocate_command_buffers(
-      this->device_, this->cmd_pool_, this->required_info_.image_count);
   ::std::vector buffers = {
       wrap_buffer(this->physical_, this->device_, queue_indices, vertices,
                   ::vk::BufferUsageFlagBits::eVertexBuffer),
@@ -175,24 +174,13 @@ auto TriangleApplication::app_init(QueueFamilyIndices &queue_indices,
 
   auto vert = this->create_shader_module(shader_path / "main.vert.spv");
   auto frag = this->create_shader_module(shader_path / "main.frag.spv");
+  this->layout_ = create_pipeline_layout(this->device_, this->set_layout_);
   this->pipeline_ = this->create_vf_pipeline(vert, frag);
-
-  this->image_avaliables_ =
-      create_semaphores(this->device_, this->required_info_.image_count);
-  this->present_finishes_ =
-      create_semaphores(this->device_, this->required_info_.image_count);
-  this->fences_ =
-      create_fences(this->device_, this->required_info_.image_count);
 }
 
 auto TriangleApplication::app_destroy() -> void {
-  for (decltype(required_info_.image_count) i = 0;
-       i < required_info_.image_count; ++i) {
-    this->device_.destroyFence(this->fences_[i]);
-    this->device_.destroySemaphore(this->present_finishes_[i]);
-    this->device_.destroySemaphore(this->image_avaliables_[i]);
-  }
   this->device_.destroyPipeline(this->pipeline_);
+  this->device_.destroyPipelineLayout(this->layout_);
   this->device_.freeDescriptorSets(this->desc_pool_, this->desc_set_);
   this->device_.destroyDescriptorPool(this->desc_pool_);
   this->device_.destroyDescriptorSetLayout(set_layout_);
@@ -200,8 +188,6 @@ auto TriangleApplication::app_destroy() -> void {
   for (auto &buffer : this->device_buffers_) {
     this->device_.destroyBuffer(buffer);
   }
-  this->device_.freeCommandBuffers(this->cmd_pool_, this->cmd_buffers_);
-  this->device_.destroyCommandPool(this->cmd_pool_);
   for (auto &buffer : this->framebuffers_) {
     this->device_.destroyFramebuffer(buffer);
   }
@@ -227,18 +213,6 @@ auto TriangleApplication::get_vertex_input_description() -> decltype(auto) {
       .setStride(sizeof(Vertex));
 
   return ::std::make_pair(attr_descs, bind_desc);
-}
-
-auto TriangleApplication::create_pipeline_layout() -> ::vk::PipelineLayout {
-  ::vk::PushConstantRange range;
-  range.setOffset(0)
-      .setStageFlags(::vk::ShaderStageFlagBits::eVertex)
-      .setSize(sizeof(float));
-  ::vk::PipelineLayoutCreateInfo info;
-  info.setSetLayouts(this->set_layout_).setPushConstantRanges(range);
-  ::vk::PipelineLayout layout = this->device_.createPipelineLayout(info);
-  assert(layout && "pipeline layout create failed!");
-  return layout;
 }
 
 auto TriangleApplication::record_command(::vk::CommandBuffer &cbuf,
@@ -279,43 +253,4 @@ auto TriangleApplication::record_command(::vk::CommandBuffer &cbuf,
 
   cbuf.endRenderPass();
   cbuf.end();
-}
-
-auto TriangleApplication::render() -> void {
-  this->device_.resetFences(this->fences_[this->current_frame_]);
-
-  auto option_index = this->device_.acquireNextImageKHR(
-      this->swapchain_, ::std::numeric_limits<uint64_t>::max(),
-      this->image_avaliables_[this->current_frame_], nullptr);
-  assert(option_index.result == ::vk::Result::eSuccess &&
-         "acquire image failed!");
-  uint32_t image_index = option_index.value;
-
-  this->cmd_buffers_[this->current_frame_].reset();
-  this->record_command(this->cmd_buffers_[this->current_frame_],
-                       this->framebuffers_[image_index]);
-
-  ::vk::PipelineStageFlags flags{
-      ::vk::PipelineStageFlagBits::eColorAttachmentOutput};
-  ::vk::SubmitInfo submit_info;
-  submit_info.setCommandBuffers(this->cmd_buffers_[this->current_frame_])
-      .setWaitSemaphores(this->image_avaliables_[this->current_frame_])
-      .setSignalSemaphores(this->present_finishes_[this->current_frame_])
-      .setWaitDstStageMask(flags);
-  this->graphics_queue_.submit(submit_info,
-                               this->fences_[this->current_frame_]);
-
-  ::vk::PresentInfoKHR present_info;
-  present_info.setImageIndices(image_index)
-      .setSwapchains(this->swapchain_)
-      .setWaitSemaphores(this->present_finishes_[this->current_frame_]);
-  [[maybe_unused]] auto result = this->present_queue_.presentKHR(present_info);
-  assert(result == ::vk::Result::eSuccess && "present failed!");
-  result =
-      this->device_.waitForFences(this->fences_[this->current_frame_], true,
-                                  ::std::numeric_limits<uint64_t>::max());
-  assert(result == ::vk::Result::eSuccess && "wait fences failed!");
-
-  this->current_frame_ =
-      (this->current_frame_ + 1) % this->required_info_.image_count;
 }

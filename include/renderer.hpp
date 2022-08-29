@@ -13,7 +13,7 @@
 
 template <typename App> class Renderer {
 public:
-  auto init(::std::filesystem::path const &shader_path) -> void;
+  auto init() -> void;
 
   auto run() -> void;
   auto destroy() -> void;
@@ -32,6 +32,7 @@ private:
 public:
 protected:
   Window window_;
+  size_t current_frame_{0};
 
   ::vk::Instance instance_{nullptr};
   ::vk::SurfaceKHR surface_{nullptr};
@@ -40,16 +41,24 @@ protected:
   ::vk::Queue graphics_queue_{nullptr};
   ::vk::Queue present_queue_{nullptr};
   ::vk::SwapchainKHR swapchain_{nullptr};
+  ::vk::CommandPool cmd_pool_{nullptr};
+
   SwapchainRequiredInfo required_info_;
+  ::vk::RenderPass render_pass_{nullptr};
   ::vk::PipelineLayout layout_{nullptr};
+  ::vk::Pipeline pipeline_{nullptr};
 
   ::std::vector<::vk::Image> images_;
   ::std::vector<::vk::ImageView> image_views_;
+  ::std::vector<::vk::Framebuffer> framebuffers_;
+  ::std::vector<::vk::CommandBuffer> cmd_buffers_;
+  ::std::vector<::vk::Semaphore> image_avaliables_;
+  ::std::vector<::vk::Semaphore> present_finishes_;
+  ::std::vector<::vk::Fence> fences_;
   ::std::vector<::vk::ShaderModule> shader_modules_;
 };
 
-template <typename App>
-auto Renderer<App>::init(::std::filesystem::path const &shader_path) -> void {
+template <typename App> auto Renderer<App>::init() -> void {
   this->instance_ = create_instance(this->window_);
   this->surface_ = create_surface(this->window_, this->instance_);
   this->physical_ = pickup_physical_device(this->instance_, this->surface_);
@@ -67,8 +76,18 @@ auto Renderer<App>::init(::std::filesystem::path const &shader_path) -> void {
   this->images_ = this->device_.getSwapchainImagesKHR(this->swapchain_);
   this->image_views_ =
       create_image_views(this->device_, this->images_, this->required_info_);
+  this->cmd_pool_ = create_command_pool(this->device_, queue_indices);
+  this->cmd_buffers_ = allocate_command_buffers(
+      this->device_, this->cmd_pool_, this->required_info_.image_count);
 
-  this->underlying()->app_init(queue_indices, shader_path);
+  this->image_avaliables_ =
+      create_semaphores(this->device_, this->required_info_.image_count);
+  this->present_finishes_ =
+      create_semaphores(this->device_, this->required_info_.image_count);
+  this->fences_ =
+      create_fences(this->device_, this->required_info_.image_count);
+
+  this->underlying()->app_init(queue_indices);
 }
 
 template <typename App>
@@ -113,9 +132,6 @@ auto Renderer<App>::create_vf_pipeline(::vk::ShaderModule const &vert,
   ::vk::PipelineInputAssemblyStateCreateInfo input_asm;
   input_asm.setTopology(::vk::PrimitiveTopology::eTriangleList)
       .setPrimitiveRestartEnable(false);
-
-  // layout
-  this->layout_ = this->underlying()->create_pipeline_layout();
 
   // viewport and scissor
   ::vk::Viewport viewport{
@@ -182,7 +198,15 @@ template <typename App> auto Renderer<App>::run() -> void {
 template <typename App> auto Renderer<App>::destroy() -> void {
   this->underlying()->app_destroy();
 
-  this->device_.destroyPipelineLayout(this->layout_);
+  for (decltype(required_info_.image_count) i = 0;
+       i < required_info_.image_count; ++i) {
+    this->device_.destroyFence(this->fences_[i]);
+    this->device_.destroySemaphore(this->present_finishes_[i]);
+    this->device_.destroySemaphore(this->image_avaliables_[i]);
+  }
+
+  this->device_.freeCommandBuffers(this->cmd_pool_, this->cmd_buffers_);
+  this->device_.destroyCommandPool(this->cmd_pool_);
   for (auto &shader : this->shader_modules_) {
     this->device_.destroyShaderModule(shader);
   }
@@ -198,7 +222,41 @@ template <typename App> auto Renderer<App>::destroy() -> void {
 }
 
 template <typename App> auto Renderer<App>::render(Renderer<App> *app) -> void {
-  app->underlying()->render();
+  app->device_.resetFences(app->fences_[app->current_frame_]);
+
+  auto option_index = app->device_.acquireNextImageKHR(
+      app->swapchain_, ::std::numeric_limits<uint64_t>::max(),
+      app->image_avaliables_[app->current_frame_], nullptr);
+  assert(option_index.result == ::vk::Result::eSuccess &&
+         "acquire image failed!");
+  uint32_t image_index = option_index.value;
+
+  app->cmd_buffers_[app->current_frame_].reset();
+  app->underlying()->record_command(app->cmd_buffers_[app->current_frame_],
+                                    app->framebuffers_[image_index]);
+
+  ::vk::PipelineStageFlags flags{
+      ::vk::PipelineStageFlagBits::eColorAttachmentOutput};
+  ::vk::SubmitInfo submit_info;
+  submit_info.setCommandBuffers(app->cmd_buffers_[app->current_frame_])
+      .setWaitSemaphores(app->image_avaliables_[app->current_frame_])
+      .setSignalSemaphores(app->present_finishes_[app->current_frame_])
+      .setWaitDstStageMask(flags);
+  app->graphics_queue_.submit(submit_info, app->fences_[app->current_frame_]);
+
+  ::vk::PresentInfoKHR present_info;
+  present_info.setImageIndices(image_index)
+      .setSwapchains(app->swapchain_)
+      .setWaitSemaphores(app->present_finishes_[app->current_frame_]);
+  [[maybe_unused]] auto result = app->present_queue_.presentKHR(present_info);
+  assert(result == ::vk::Result::eSuccess && "present failed!");
+  result = app->device_.waitForFences(app->fences_[app->current_frame_], true,
+                                      ::std::numeric_limits<uint64_t>::max());
+  assert(result == ::vk::Result::eSuccess && "wait fences failed!");
+
+  app->current_frame_ =
+      (app->current_frame_ + 1) % app->required_info_.image_count;
+  // app->underlying()->render();
 }
 
 #endif // RENDERER_HPP_

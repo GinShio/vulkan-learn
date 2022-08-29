@@ -272,6 +272,18 @@ auto create_frame_buffers(::vk::Device &device,
   return buffers;
 }
 
+auto create_command_pool(::vk::Device &device,
+                         QueueFamilyIndices &queue_indices)
+    -> ::vk::CommandPool {
+  ::vk::CommandPoolCreateInfo info;
+  info.setFlags(::vk::CommandPoolCreateFlagBits::eResetCommandBuffer)
+      .setQueueFamilyIndex(queue_indices.graphics_indices.value());
+
+  auto cmd_pool = device.createCommandPool(info);
+  assert(cmd_pool && "command pool create failed!");
+  return cmd_pool;
+}
+
 auto allocate_command_buffers(::vk::Device &device, ::vk::CommandPool &pool,
                               size_t sz) -> ::std::vector<::vk::CommandBuffer> {
   ::vk::CommandBufferAllocateInfo alloc_info;
