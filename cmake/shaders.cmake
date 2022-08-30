@@ -24,9 +24,15 @@ else()
 endif()
 
 if("${GLSLCompiler_EXE}" MATCHES ".*glslangValidator")
-  set(GLSLCompiler_DEFAULT_FLAGS --target-env vulkan1.0 -V)
+  set(GLSLCompiler_DEFAULT_FLAGS --target-env vulkan1.0 -V ${GLSLCompiler_DEFAULT_FLAGS})
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(GLSLCompiler_DEFAULT_FLAGS -O0 -g ${GLSLCompiler_DEFAULT_FLAGS})
+  endif()
 else()
-  set(GLSLCompiler_DEFAULT_FLAGS --target-env=vulkan)
+  set(GLSLCompiler_DEFAULT_FLAGS --target-env=vulkan ${GLSLCompiler_DEFAULT_FLAGS})
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(GLSLCompiler_DEFAULT_FLAGS -Od ${GLSLCompiler_DEFAULT_FLAGS})
+  endif()
 endif()
 
 # This function acts much like the 'target_sources' function, as in raw GLSL
