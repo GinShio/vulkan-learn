@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.11 FATAL_ERROR)
 
 set(TARGET_NAME "VulkanBase")
 
+enable_clang_tidy()
+
 add_library(${TARGET_NAME})
 
 target_include_directories(${TARGET_NAME} PUBLIC

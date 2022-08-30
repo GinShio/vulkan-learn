@@ -1,0 +1,101 @@
+# check options see https://clang.llvm.org/extra/clang-tidy/checks/list.html
+
+Checks: -*,
+        boost-*,
+        cert-*,
+        -cert-env33-c,
+        -cert-msc50-cpp,
+        google-*,
+        -google-objc-*,
+        -google-readability-avoid-underscore-in-googletest-name,
+        -google-runtime-references,
+        -google-upgrade-googletest-case,
+        misc-*,
+        -misc-no-recursion,
+        modernize-*,
+        -modernize-avoid-c-arrays,
+        -modernize-concat-nested-namespaces,
+        -modernize-deprecated-headers,
+        -modernize-use-nodiscard,
+        -modernize-use-trailing-return-type,
+        performance-*,
+        readability-*,
+        -readability-convert-member-functions-to-static,
+        -readability-inconsistent-declaration-parameter-name,
+        -readability-magic-numbers,
+        -readability-suspicious-call-argument,
+        -readability-uppercase-literal-suffix,
+
+WarningsAsErrors: ''
+HeaderFilterRegex: ''
+AnalyzeTemporaryDtors: false
+FormatStyle: none
+
+CheckOptions:
+  - key: google-build-namespaces.HeaderFileExtensions
+    value: 'h,hh,hpp,hxx,'
+  - key: google-global-names-in-headers.HeaderFileExtensions
+    value: 'h,hh,hpp,hxx,'
+  - key: google-readability-namespace-comments.SpacesBeforeComments
+    value: '2'
+  - key: google-readability-namespace-comments.ShortNamespaceLines
+    value: '10'
+  - key: misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
+    value: 'true'
+  - key: misc-uniqueptr-reset-release.IncludeStyle
+    value: llvm
+  - key: modernize-loop-convert.MaxCopySize
+    value: '8'
+  - key: modernize-loop-convert.MinConfidence
+    value: reasonable
+  - key: modernize-pass-by-value.IncludeStyle
+    value: llvm
+  - key: modernize-replace-auto-ptr.IncludeStyle
+    value: llvm
+  - key: modernize-use-emplace.IgnoreImplicitConstructors
+    value: 'true'
+  - key: modernize-use-override.IgnoreDestructors
+    value: 'true'
+  # SEE: https://clang.llvm.org/extra/clang-tidy/checks/readability-function-cognitive-complexity.html
+  - key: readability-function-cognitive-complexity.Threshold
+    value: '25'
+  - key: readability-function-size.LineThreshold
+    value: '64'
+  - key: readability-function-size.StatementThreshold
+    value: '500'
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.ClassMemberCase
+    value: lower_case
+  - key: readability-identifier-naming.ClassMemberSuffix
+    value: _
+  - key: readability-identifier-naming.ConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.ConstantPrefix
+    value: k
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumConstantPrefix
+    value: k
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.PrivateMemberSuffix
+    value: _
+  - key: readability-identifier-naming.ProtectedMemberSuffix
+    value: _
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.TemplateParameterCase
+    value: CamelCase
+  - key: readability-identifier-naming.TypeTemplateParameterIgnoredRegexp
+    value: expr-type
+  - key: readability-implicit-bool-conversion.AllowIntegerConditions
+    value: 'true'
+  - key: readability-implicit-bool-conversion.AllowPointerConditions
+    value: 'true'

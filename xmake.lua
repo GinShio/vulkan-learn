@@ -5,6 +5,7 @@ add_rules("mode.debug", "mode.release")
 
 includes("xmake/common.lua"
          ,"xmake/shaders.lua"
+         ,"xmake/tidy.lua"
 )
 
 common_option()
