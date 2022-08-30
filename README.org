@@ -18,32 +18,36 @@ Learning vulkan C++ binding repo
     * set environment variable =PKG_CONFIG_PATH=
   + cmake
 
-** project architecture
+** project structure
 #+begin_example
 /
-├── cmake
+├── cmake/
 ├── CMakeLists.txt
-├── include
-├── projects
-│   ├── CMakeLists.txt
-│   ├── test
-│   ├── triangle
-│   └── canvas
+├── include/
+├── projects/
+│   ├── canvas/
+│   ├── test/
+│   └── triangle/
 ├── README.org
-├── src
-└── video
+├── src/
+├── video/
+├── xmake/
+└── xmake.lua
 #+end_example
 
 + cmake :: cmake files
++ CMakeLists.txt :: cmake project configuration file
 + include :: common utility definition
-+ projects :: projects, maybe link utility
-  | dir      | target         | comment                             |
-  |----------+----------------+-------------------------------------|
-  | test     | VulkanTest     | test vulkan SDK                     |
-  | triangle | VulkanTriangle | draw a triangle (learn VF pipeline) |
-  | canvas   | VulkanCanvas   | glslang fs canvas                   |
++ projects ::
+  | dir      | target         | comment                                  |
+  |----------+----------------+------------------------------------------|
+  | canvas   | VulkanCanvas   | glslang canvas (learn builtin functions) |
+  | test     | VulkanTest     | test vulkan SDK                          |
+  | triangle | VulkanTriangle | draw a triangle (learn VF pipeline)      |
 + src :: common utility implement, target =VulkanBase=
 + video :: project display
++ xmake :: xmake files
++ xmake.lua :: xmake project configuration file
 
 ** .pc file
 .pc file is libraries configuration file, it record the library's
