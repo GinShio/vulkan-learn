@@ -15,7 +15,7 @@
 
 #include <vulkan/vulkan.hpp>
 
-extern ::std::filesystem::path const shader_path;
+extern ::std::filesystem::path shader_path;
 
 namespace {
 

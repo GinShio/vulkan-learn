@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <limits>
 #include <tuple>
 #include <utility>
@@ -16,8 +17,8 @@
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.hpp>
 
-extern ::std::filesystem::path const shader_path;
-extern ::std::string const shader_name;
+extern ::std::filesystem::path shader_path;
+extern ::std::string shader_name;
 
 namespace {
 
@@ -31,6 +32,7 @@ static ::std::array vertices{
 static ::std::array<uint16_t, 6> indices{0, 1, 2, 1, 2, 3};
 
 struct PushConstantObject {
+  int millisec;
   ::glm::vec2 extent;
 } pco;
 
@@ -168,6 +170,9 @@ auto CanvasApplication::record_command(::vk::CommandBuffer &cbuf,
   cbuf.bindVertexBuffers(0, this->device_buffers_[0], {0});
   cbuf.bindIndexBuffer(this->device_buffers_[1], 0, ::vk::IndexType::eUint16);
 
+  pco.millisec = ::std::chrono::duration_cast<::std::chrono::milliseconds>(
+                     ::std::chrono::system_clock::now().time_since_epoch())
+                     .count();
   cbuf.pushConstants(this->layout_, ::vk::ShaderStageFlagBits::eFragment, 0,
                      sizeof(PushConstantObject), &pco);
 
