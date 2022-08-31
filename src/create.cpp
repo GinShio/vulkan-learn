@@ -20,8 +20,8 @@
 #endif
 
 namespace {
-template <typename Int> auto gcd(Int a, Int b) -> Int {
-  return !b ? a : gcd(b, a % b);
+template <typename Int> auto gcd(Int num1, Int num2) -> Int {
+  return !num2 ? num1 : gcd(num2, num1 % num2);
 }
 } // namespace
 
@@ -211,7 +211,8 @@ auto query_swapchain_required_info(SDL_Window *window,
     }
   }
 
-  int width{0}, height{0};
+  int width{0};
+  int height{0};
   SDL_GetWindowSize(window, &width, &height);
   info.extent =
       ::vk::Extent2D{::std::clamp(static_cast<uint32_t>(width),
@@ -232,8 +233,8 @@ auto create_image_views(::vk::Device &device,
                         ::std::vector<::vk::Image> &images,
                         SwapchainRequiredInfo &required_info)
     -> ::std::vector<::vk::ImageView> {
-  auto sz = images.size();
-  ::std::vector<::vk::ImageView> views{sz, nullptr};
+  auto sizz = images.size();
+  ::std::vector<::vk::ImageView> views{sizz, nullptr};
   ::vk::ImageViewCreateInfo info;
   info.setViewType(::vk::ImageViewType::e2D)
       .setFormat(required_info.format.format)
@@ -243,7 +244,7 @@ auto create_image_views(::vk::Device &device,
       .setSubresourceRange(::vk::ImageSubresourceRange{
           ::vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
 
-  for (decltype(sz) i = 0; i < sz; ++i) {
+  for (decltype(sizz) i = 0; i < sizz; ++i) {
     info.setImage(images[i]);
     views[i] = device.createImageView(info);
     assert(views[i] && "image view create failed!");
@@ -262,10 +263,8 @@ auto create_frame_buffers(::vk::Device &device,
       .setLayers(1)
       .setWidth(required_info.extent.width)
       .setHeight(required_info.extent.height);
-  for (decltype(::std::declval<decltype(views)>().size()) i = 0,
-                                                          e = views.size();
-       i < e; ++i) {
-    info.setAttachments(views[i]);
+  for (auto &view : views) {
+    info.setAttachments(view);
     buffers.emplace_back(device.createFramebuffer(info));
     assert(buffers.back() && "frame buffers create failed!");
   }
@@ -285,11 +284,12 @@ auto create_command_pool(::vk::Device &device,
 }
 
 auto allocate_command_buffers(::vk::Device &device, ::vk::CommandPool &pool,
-                              size_t sz) -> ::std::vector<::vk::CommandBuffer> {
+                              size_t size)
+    -> ::std::vector<::vk::CommandBuffer> {
   ::vk::CommandBufferAllocateInfo alloc_info;
   alloc_info.setLevel(::vk::CommandBufferLevel::ePrimary)
       .setCommandPool(pool)
-      .setCommandBufferCount(sz);
+      .setCommandBufferCount(size);
   return device.allocateCommandBuffers(alloc_info);
 }
 
@@ -316,8 +316,8 @@ auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
   decltype(property.memoryTypeCount) index{property.memoryTypeCount};
   for (decltype(property.memoryTypeCount) i = 0; i < property.memoryTypeCount;
        ++i) {
-    if (requirement.memoryTypeBits & (1 << i) &&
-        property.memoryTypes[i].propertyFlags & flag) {
+    if (((requirement.memoryTypeBits & (1 << i)) != 0u) &&
+        (property.memoryTypes[i].propertyFlags & flag)) {
       index = i;
       break;
     }
@@ -340,7 +340,7 @@ auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
 
   uint32_t memory_type = ::std::numeric_limits<uint32_t>::max();
   ::vk::DeviceSize size{0};
-  for (auto &buffer : buffers) {
+  for (auto const &buffer : buffers) {
     auto requirement = device.getBufferMemoryRequirements(buffer);
     size += (requirement.size + requirement.alignment - 1) /
             requirement.alignment * requirement.alignment;
@@ -351,8 +351,8 @@ auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
   }
   for (decltype(property.memoryTypeCount) i = 0; i < property.memoryTypeCount;
        ++i) {
-    if (memory_type & (1 << i) &&
-        property.memoryTypes[i].propertyFlags & flag) {
+    if (((memory_type & (1 << i)) != 0u) &&
+        (property.memoryTypes[i].propertyFlags & flag)) {
       index = i;
       break;
     }
@@ -366,12 +366,13 @@ auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
 
   ::std::vector<::vk::Buffer> device_buffers;
   ::vk::DeviceSize offset{0};
-  for (decltype(::std::declval<decltype(buffers)>().size()) i = 0,
-                                                            e = buffers.size();
-       i < e; ++i) {
+  for (decltype(::std::declval<decltype(buffers)>().size())
+           i = 0,
+           end = buffers.size();
+       i < end; ++i) {
     device.bindBufferMemory(buffers[i], memory, offset);
     device_buffers.emplace_back(buffers[i]);
-    if (i + 1 == e) {
+    if (i + 1 == end) {
       continue;
     }
     auto curr = device.getBufferMemoryRequirements(buffers[i]);
@@ -402,13 +403,13 @@ auto allocate_memory(
 
   // NOTE: in windows, buffer requirement size not equal needed size, copy
   // buffer will warning
-  for (auto &[host_buffer, host_memory, device_buffer, size] : buffers) {
+  for (auto const &[host_buffer, host_memory, device_buffer, size] : buffers) {
     copy_buffer(device, pool, queue, host_buffer, device_buffer, size);
     // destroy host memory and host buffer
     device.freeMemory(host_memory);
     device.destroyBuffer(host_buffer);
   }
-  return ::std::make_pair(::std::move(device_buffers), ::std::move(memory));
+  return ::std::make_pair(::std::move(device_buffers), memory);
 }
 
 auto copy_data(::vk::Device &device, ::vk::DeviceMemory &memory, size_t offset,
@@ -438,22 +439,22 @@ auto copy_buffer(::vk::Device &device, ::vk::CommandPool &pool,
   device.waitIdle();
 }
 
-auto create_semaphores(::vk::Device &device, size_t sz)
+auto create_semaphores(::vk::Device &device, size_t size)
     -> ::std::vector<::vk::Semaphore> {
   ::vk::SemaphoreCreateInfo info;
-  ::std::vector<::vk::Semaphore> ret{sz};
-  for (decltype(sz) i = 0; i < sz; ++i) {
+  ::std::vector<::vk::Semaphore> ret{size};
+  for (decltype(size) i = 0; i < size; ++i) {
     ret[i] = device.createSemaphore(info);
     assert(ret[i] && "semophare create failed!");
   }
   return ret;
 }
 
-auto create_fences(::vk::Device &device, size_t sz)
+auto create_fences(::vk::Device &device, size_t size)
     -> ::std::vector<::vk::Fence> {
   ::vk::FenceCreateInfo info;
-  ::std::vector<::vk::Fence> ret{sz};
-  for (decltype(sz) i = 0; i < sz; ++i) {
+  ::std::vector<::vk::Fence> ret{size};
+  for (decltype(size) i = 0; i < size; ++i) {
     ret[i] = device.createFence(info);
     assert(ret[i] && "fence create failed!");
   }

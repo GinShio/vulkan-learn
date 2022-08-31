@@ -20,15 +20,15 @@ extern ::std::filesystem::path shader_path;
 namespace {
 
 // triangle
-static ::std::array vertices{
+::std::array vertices{
     Vertex{{0.f, -0.5f}, {1.f, 0.f, 0.f}},
     Vertex{{0.5f, 0.5f}, {0.f, 1.f, 0.f}},
     Vertex{{-0.5f, 0.5f}, {0.f, 0.f, 1.f}},
 };
 
-static ::std::array<uint16_t, 3> indices{0, 1, 2};
+::std::array<uint16_t, 3> indices{0, 1, 2};
 
-static MVP ebo{
+MVP ebo{
     // model
     ::glm::mat4{1.f},
     // view
@@ -37,9 +37,9 @@ static MVP ebo{
     ::glm::mat4{1.f},
 };
 
-static constexpr float DELTA{0.8e-3f};
+constexpr float kDelta{0.8e-3f};
 
-static constexpr float ESP{1e-6f};
+constexpr float kEsp{1e-6f};
 
 auto create_render_pass(::vk::Device &device,
                         SwapchainRequiredInfo &required_info)
@@ -96,9 +96,9 @@ auto create_descriptor_set_layout(::vk::Device &device)
 
 auto create_descriptor_pool(::vk::Device &device, size_t max_size)
     -> ::vk::DescriptorPool {
-  static ::vk::DescriptorPoolSize sz{::vk::DescriptorType::eUniformBuffer, 1};
+  static ::vk::DescriptorPoolSize size{::vk::DescriptorType::eUniformBuffer, 1};
   ::vk::DescriptorPoolCreateInfo info;
-  info.setPoolSizes(sz).setMaxSets(max_size).setFlags(
+  info.setPoolSizes(size).setMaxSets(max_size).setFlags(
       ::vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
   auto pool = device.createDescriptorPool(info);
   assert(pool && "descriptor pool create failed!");
@@ -236,17 +236,17 @@ auto TriangleApplication::record_command(::vk::CommandBuffer &cbuf,
   cbuf.bindIndexBuffer(this->device_buffers_[1], 0, ::vk::IndexType::eUint16);
   cbuf.bindDescriptorSets(::vk::PipelineBindPoint::eGraphics, this->layout_, 0,
                           this->desc_set_, {});
-  static float c{0.00f};
-  static bool f{true};
-  if (f) {
-    c = ::std::clamp(c + DELTA, 0.f, 1.f);
-    f = 1.f - c > ESP;
+  static float color{0.00f};
+  static bool flag{true};
+  if (flag) {
+    color = ::std::clamp(color + kDelta, 0.f, 1.f);
+    flag = 1.f - color > kEsp;
   } else {
-    c = ::std::clamp(c - DELTA, 0.f, 1.f);
-    f = c - 0.f < ESP;
+    color = ::std::clamp(color - kDelta, 0.f, 1.f);
+    flag = color - 0.f < kEsp;
   }
   cbuf.pushConstants(this->layout_, ::vk::ShaderStageFlagBits::eVertex, 0,
-                     sizeof(float), &c);
+                     sizeof(float), &color);
 
   // cbuf.draw(vertices.size(), 1, 0, 0);
   cbuf.drawIndexed(indices.size(), 1, 0, 0, 0);

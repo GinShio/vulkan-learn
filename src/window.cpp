@@ -4,27 +4,27 @@
 
 namespace {
 
-::std::string const default_name{"SDL_Vulkan"};
+::std::string const kDefaultName{"SDL_Vulkan"};
 
-int const default_width{800};
+int const kDefaultWidth{800};
 
-int const default_height{600};
+int const kDefaultHeight{600};
 
-Uint32 const default_flags{SDL_WINDOW_SHOWN | SDL_WINDOW_VULKAN};
+Uint32 const kDefaultFlags{SDL_WINDOW_SHOWN | SDL_WINDOW_VULKAN};
 
 } // namespace
 
 Window::Window()
-    : Window(default_name, default_width, default_height, default_flags) {}
+    : Window(kDefaultName, kDefaultWidth, kDefaultHeight, kDefaultFlags) {}
 
 Window::Window(::std::string const &name)
-    : Window(name, default_width, default_height, default_flags) {}
+    : Window(name, kDefaultWidth, kDefaultHeight, kDefaultFlags) {}
 
 Window::Window(Uint32 flags)
-    : Window(default_name, default_width, default_height, flags) {}
+    : Window(kDefaultName, kDefaultWidth, kDefaultHeight, flags) {}
 
 Window::Window(int width, int height)
-    : Window(default_name, width, height, default_flags) {}
+    : Window(kDefaultName, width, height, kDefaultFlags) {}
 
 Window::Window(::std::string const &name, int width, int height, Uint32 flags)
     : window_{SDL_CreateWindow(name.c_str(), SDL_WINDOWPOS_CENTERED,
@@ -47,7 +47,8 @@ auto Window::get_window() -> SDL_Window * { return this->window_; }
 auto Window::get_window() const -> SDL_Window const * { return this->window_; }
 
 auto Window::get_size() const -> ::std::pair<int, int> {
-  int width, height;
+  int width{0};
+  int height{0};
   SDL_GetWindowSize(this->window_, &width, &height);
   return ::std::make_pair(width, height);
 }

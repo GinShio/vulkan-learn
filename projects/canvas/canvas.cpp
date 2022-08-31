@@ -22,14 +22,14 @@ extern ::std::string shader_name;
 
 namespace {
 
-static ::std::array vertices{
+::std::array vertices{
     ::glm::vec2{-1.f, -1.f},
     ::glm::vec2{-1.f, 1.f},
     ::glm::vec2{1.f, -1.f},
     ::glm::vec2{1.f, 1.f},
 };
 
-static ::std::array<uint16_t, 6> indices{0, 1, 2, 1, 2, 3};
+::std::array<uint16_t, 6> indices{0, 1, 2, 1, 2, 3};
 
 struct PushConstantObject {
   int millisec;
