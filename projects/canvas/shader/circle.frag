@@ -3,7 +3,7 @@
 
 #version 450 core
 
-layout(push_constant) uniform PushConstantObject {
+layout(push_constant, std430) uniform PushConstantObject {
     int millisec;
     vec2 extent;
 } pco;
@@ -15,26 +15,27 @@ const float stroke = 0.01f;
 
 vec3 get_circle(vec2 center, vec2 coord) {
     float dist = distance(coord, center);
-    float base_radius = step(radius, dist);
+    float base_radius = step(dist, radius);
     return vec3(base_radius);
 }
 
 vec3 get_ring(vec2 center, vec2 coord) {
     float dist = distance(coord, center);
-    float base_radius = step(radius, dist);
-    float little_radius = step(radius - stroke, dist);
-    return vec3(1.f - (little_radius - base_radius));
+    float base_radius = step(dist, radius);
+    float little_radius = step(dist, radius - stroke);
+    return vec3(base_radius - little_radius);
 }
 
 void main() {
     vec2 scale = {pco.extent.x / pco.extent.y, 1.f};
     vec2 coord = gl_FragCoord.xy / pco.extent.xy * scale; // normalized
     vec2 center = vec2(0.5f, 0.5f) * scale;
-    vec2 timed_center = {center.x + 0.05f / scale.x * cos(radians(pco.millisec)),
-                         center.y + 0.05f / scale.y * sin(radians(pco.millisec))};
+    vec2 timed_center = {center.x + 0.08f / scale.x * cos(radians(pco.millisec / 8)),
+                         center.y + 0.08f / scale.y * sin(radians(pco.millisec / 8))};
 
-    // vec3 color = get_ring(center, coord);
-    vec3 color = get_ring(timed_center, coord);
+    vec3 circle = get_circle(center, coord);
+    vec3 ring = get_ring(timed_center, coord);
+    vec3 color = ring + circle;
 
     frag_color = vec4(color, 1.f);
 }

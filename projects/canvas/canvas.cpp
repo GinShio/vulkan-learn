@@ -33,6 +33,7 @@ namespace {
 
 struct PushConstantObject {
   int millisec;
+  uint32_t : 1; // out of range if delete it
   ::glm::vec2 extent;
 } pco;
 
