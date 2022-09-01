@@ -113,11 +113,17 @@ auto CanvasApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
       this->physical_, this->device_, this->cmd_pool_, this->graphics_queue_,
       buffers, ::vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-  auto vert = this->create_shader_module(shader_path / "main.vert.spv");
-  auto frag =
-      this->create_shader_module(shader_path / (shader_name + ".frag.spv"));
   this->layout_ = create_pipeline_layout(this->device_);
-  this->pipeline_ = this->create_vf_pipeline(vert, frag);
+  ::vk::PipelineShaderStageCreateInfo vert_stage;
+  vert_stage.setStage(::vk::ShaderStageFlagBits::eVertex)
+      .setModule(this->create_shader_module(shader_path / "main.vert.spv"))
+      .setPName("main");
+  ::vk::PipelineShaderStageCreateInfo frag_stage;
+  frag_stage.setStage(::vk::ShaderStageFlagBits::eFragment)
+      .setModule(
+          this->create_shader_module(shader_path / (shader_name + ".frag.spv")))
+      .setPName("main");
+  this->pipeline_ = this->create_pipeline({vert_stage, frag_stage});
 
   pco.extent = {this->required_info_.extent.width,
                 this->required_info_.extent.height};

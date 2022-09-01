@@ -16,7 +16,6 @@ private:
   auto record_command(::vk::CommandBuffer &cbuf, ::vk::Framebuffer &fbuf)
       -> void;
 
-private:
   ::vk::DeviceMemory device_memory_{nullptr};
   ::std::vector<::vk::Buffer> device_buffers_;
 };

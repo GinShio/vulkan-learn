@@ -172,10 +172,16 @@ auto TriangleApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
       allocate_descriptor_set(this->device_, this->desc_pool_,
                               this->set_layout_, this->device_buffers_.back());
 
-  auto vert = this->create_shader_module(shader_path / "main.vert.spv");
-  auto frag = this->create_shader_module(shader_path / "main.frag.spv");
   this->layout_ = create_pipeline_layout(this->device_, this->set_layout_);
-  this->pipeline_ = this->create_vf_pipeline(vert, frag);
+  ::vk::PipelineShaderStageCreateInfo vert_stage;
+  vert_stage.setStage(::vk::ShaderStageFlagBits::eVertex)
+      .setModule(this->create_shader_module(shader_path / "main.vert.spv"))
+      .setPName("main");
+  ::vk::PipelineShaderStageCreateInfo frag_stage;
+  frag_stage.setStage(::vk::ShaderStageFlagBits::eFragment)
+      .setModule(this->create_shader_module(shader_path / "main.frag.spv"))
+      .setPName("main");
+  this->pipeline_ = this->create_pipeline({vert_stage, frag_stage});
 }
 
 auto TriangleApplication::app_destroy() -> void {

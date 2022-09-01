@@ -40,42 +40,10 @@ if(WIN32)
   add_compile_definitions(SDL_MAIN_HANDLED)
 endif()
 
-
-if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  if(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
-    add_compile_options(-ferror-limit=5)
-  elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    add_compile_options(-fmax-errors=5)
-  endif()
-  add_compile_options(
-    -fno-stack-protector
-    -fno-common
-    -Wall
-    -march=native
-    )
-endif()
-
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_definitions(
     DEBUG
     )
-  if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    # from lua Makefile
-    add_compile_options(
-      -fno-inline
-      -Weffc++
-      # from lua Makefile
-      -Wdisabled-optimization
-      -Wdouble-promotion
-      -Wextra
-      -Wmissing-declarations
-      -Wredundant-decls
-      -Wshadow
-      -Wsign-compare
-      -Wundef
-      # -Wfatal-errors
-      )
-  endif()
 elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
   add_compile_definitions(
     DEBUG
@@ -84,4 +52,18 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
   add_compile_definitions(
     NDEBUG
     )
+endif()
+
+if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  if(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
+    add_compile_options(-ferror-limit=5)
+  elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(-fmax-errors=5)
+  endif()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-stack-protector -fno-common -Wall -march=native")
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-inline -Weffc++")
+  # from lua Makefile
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wdisabled-optimization -Wdouble-promotion \
+-Wextra -Wmissing-declarations -Wredundant-decls -Wshadow -Wsign-compare -Wundef")
+  # set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wfatal-errors")
 endif()

@@ -65,7 +65,8 @@ auto create_command_pool(::vk::Device &device,
     -> ::vk::CommandPool;
 
 auto allocate_command_buffers(::vk::Device &device, ::vk::CommandPool &pool,
-                              size_t sz) -> ::std::vector<::vk::CommandBuffer>;
+                              size_t size)
+    -> ::std::vector<::vk::CommandBuffer>;
 
 auto create_buffer(::vk::Device &device, QueueFamilyIndices &indices,
                    ::vk::DeviceSize size, ::vk::BufferUsageFlags flag)

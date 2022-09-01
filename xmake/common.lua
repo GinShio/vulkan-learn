@@ -9,7 +9,8 @@ function common_option()
     add_defines("NDEBUG")
   end
 
-  if is_plat("macosx", "linux") then
+  if is_host("windows") and not is_subhost("msys", "cygwin") then
+  else
     add_cxxflags("-fno-stack-protector"
                  ,"-fno-common"
                  ,"-Wall"
@@ -31,5 +32,4 @@ function common_option()
       )
     end
   end
-
 end

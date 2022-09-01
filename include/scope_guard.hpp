@@ -3,31 +3,31 @@
 
 #include <utility>
 
-namespace _details {
+namespace details {
 
 template <typename Func> struct ScopeGuardImpl {
   Func f;
-  ScopeGuardImpl(Func &&fun) : f(::std::forward<Func>(fun)) {}
+  explicit ScopeGuardImpl(Func &&fun) : f(::std::forward<Func>(fun)) {}
   ~ScopeGuardImpl() { f(); }
 };
 
 struct ScopeGuardDump {};
 
-} // namespace _details
+} // namespace details
 
 template <typename Func>
-auto operator*(::_details::ScopeGuardDump /* dump */, Func &&fun)
-    -> ::_details::ScopeGuardImpl<Func> {
-  return ::std::forward<Func>(fun);
+auto operator*(::details::ScopeGuardDump /* dump */, Func &&fun)
+    -> ::details::ScopeGuardImpl<Func> {
+  return ::details::ScopeGuardImpl<Func>{::std::forward<Func>(fun)};
 }
 
-#define _MAKE_SCOPE_GUARD_VAR_NAME_1(NAME, COUNT) NAME##COUNT
+#define MAKE_SCOPE_GUARD_VAR_NAME_1(NAME, COUNT) NAME##COUNT
 
-#define _MAKE_SCOPE_GUARD_VAR_NAME_2(NAME, COUNT)                              \
-  _MAKE_SCOPE_GUARD_VAR_NAME_1(NAME, COUNT)
+#define MAKE_SCOPE_GUARD_VAR_NAME_2(NAME, COUNT)                               \
+  MAKE_SCOPE_GUARD_VAR_NAME_1(NAME, COUNT)
 
 #define MAKE_SCOPE_GUARD                                                       \
-  auto _MAKE_SCOPE_GUARD_VAR_NAME_2(_details_scope_guard, __COUNTER__) =       \
-      _details::ScopeGuardDump{} *[&]
+  auto MAKE_SCOPE_GUARD_VAR_NAME_2(_details_scope_guard, __COUNTER__) =        \
+      details::ScopeGuardDump{} *[&]
 
 #endif // SCOPE_GUARD_HPP_

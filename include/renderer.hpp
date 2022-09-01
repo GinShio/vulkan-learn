@@ -6,6 +6,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 #include <iterator>
 #include <limits>
 
@@ -23,8 +24,9 @@ public:
 protected:
   auto create_shader_module(::std::filesystem::path const &filename)
       -> ::vk::ShaderModule;
-  auto create_vf_pipeline(::vk::ShaderModule const &vert,
-                          ::vk::ShaderModule const &frag) -> ::vk::Pipeline;
+  auto create_pipeline(
+      ::std::initializer_list<::vk::PipelineShaderStageCreateInfo> stages)
+      -> ::vk::Pipeline;
 
 private:
   auto underlying() -> App * { return reinterpret_cast<App *>(this); }
@@ -101,37 +103,26 @@ auto Renderer<App>::create_shader_module(
   ::vk::ShaderModuleCreateInfo info;
   info.setCodeSize(content.size())
       .setPCode(reinterpret_cast<uint32_t const *>(content.data()));
-  auto module_ = this->device_.createShaderModule(info);
-  assert(module_ && "shader module create failed!");
-  this->shader_modules_.emplace_back(module_);
-  return module_;
+  auto shader_module = this->device_.createShaderModule(info);
+  assert(shader_module && "shader module create failed!");
+  this->shader_modules_.emplace_back(shader_module);
+  return shader_module;
 }
 
 template <typename App>
-auto Renderer<App>::create_vf_pipeline(::vk::ShaderModule const &vert,
-                                       ::vk::ShaderModule const &frag)
+auto Renderer<App>::create_pipeline(
+    ::std::initializer_list<::vk::PipelineShaderStageCreateInfo> stages)
     -> ::vk::Pipeline {
-  // shader config
-  ::std::array<::vk::PipelineShaderStageCreateInfo, 2> stage_infos{
-      ::vk::PipelineShaderStageCreateInfo{
-          ::vk::PipelineShaderStageCreateFlags{},
-          ::vk::ShaderStageFlagBits::eVertex, vert, "main"},
-      ::vk::PipelineShaderStageCreateInfo{
-          ::vk::PipelineShaderStageCreateFlags{},
-          ::vk::ShaderStageFlagBits::eFragment, frag, "main"},
-  };
-
   // vertex input
-  ::vk::PipelineVertexInputStateCreateInfo vertex_input;
   auto [attr_descs, bind_desc] =
       this->underlying()->get_vertex_input_description();
+  ::vk::PipelineVertexInputStateCreateInfo vertex_input;
   vertex_input.setVertexAttributeDescriptions(attr_descs)
       .setVertexBindingDescriptions(bind_desc);
 
   // input assembly
-  ::vk::PipelineInputAssemblyStateCreateInfo input_asm;
-  input_asm.setTopology(::vk::PrimitiveTopology::eTriangleList)
-      .setPrimitiveRestartEnable(false);
+  ::vk::PipelineInputAssemblyStateCreateInfo input_asm{
+      {}, ::vk::PrimitiveTopology::eTriangleList, 0u};
 
   // viewport and scissor
   ::vk::Viewport viewport{
@@ -139,26 +130,22 @@ auto Renderer<App>::create_vf_pipeline(::vk::ShaderModule const &vert,
       0.f,
       static_cast<float>(this->required_info_.extent.width),
       static_cast<float>(this->required_info_.extent.height),
-      0.f,
-      1.f,
   };
   ::vk::Rect2D scissor{::vk::Offset2D{0, 0}, this->required_info_.extent};
-  ::vk::PipelineViewportStateCreateInfo viewport_state;
-  viewport_state.setViewports(viewport).setScissors(scissor);
+  ::vk::PipelineViewportStateCreateInfo viewport_state{{}, viewport, scissor};
 
   // rasterization
   ::vk::PipelineRasterizationStateCreateInfo rast_info;
-  rast_info.setRasterizerDiscardEnable(false)
-      .setDepthClampEnable(false)
-      .setDepthBiasEnable(false)
+  rast_info.setRasterizerDiscardEnable(0u)
+      .setDepthClampEnable(0u)
+      .setDepthBiasEnable(0u)
       .setLineWidth(1.f)
       .setCullMode(::vk::CullModeFlagBits::eNone)
       .setPolygonMode(::vk::PolygonMode::eFill);
 
   // multisample
-  ::vk::PipelineMultisampleStateCreateInfo multi_info;
-  multi_info.setRasterizationSamples(::vk::SampleCountFlagBits::e1)
-      .setSampleShadingEnable(false);
+  ::vk::PipelineMultisampleStateCreateInfo multi_info{
+      {}, ::vk::SampleCountFlagBits::e1, 0u};
 
   // depth stencil
 
@@ -168,13 +155,11 @@ auto Renderer<App>::create_vf_pipeline(::vk::ShaderModule const &vert,
       ::vk::ColorComponentFlagBits::eR | ::vk::ColorComponentFlagBits::eG |
       ::vk::ColorComponentFlagBits::eB | ::vk::ColorComponentFlagBits::eA);
   ::vk::PipelineColorBlendStateCreateInfo color_state;
-  color_state.setLogicOpEnable(false).setAttachments(color_att);
-
-  // render pass
+  color_state.setLogicOpEnable(0u).setAttachments(color_att);
 
   // graphics pipeline
   ::vk::GraphicsPipelineCreateInfo info;
-  info.setStages(stage_infos)
+  info.setStages(stages)
       .setPVertexInputState(&vertex_input)
       .setPInputAssemblyState(&input_asm)
       .setLayout(this->layout_)
@@ -183,10 +168,10 @@ auto Renderer<App>::create_vf_pipeline(::vk::ShaderModule const &vert,
       .setPMultisampleState(&multi_info)
       .setPDepthStencilState(nullptr)
       .setPColorBlendState(&color_state)
-      .setRenderPass(this->underlying()->render_pass_);
+      .setRenderPass(this->render_pass_);
   auto result = this->device_.createGraphicsPipeline(nullptr, info);
   assert(result.result == ::vk::Result::eSuccess &&
-         "vf graphics pipeline create failed!");
+         "graphics pipeline create failed!");
   return result.value;
 }
 
@@ -256,7 +241,6 @@ template <typename App> auto Renderer<App>::render(Renderer<App> *app) -> void {
 
   app->current_frame_ =
       (app->current_frame_ + 1) % app->required_info_.image_count;
-  // app->underlying()->render();
 }
 
 #endif // RENDERER_HPP_
