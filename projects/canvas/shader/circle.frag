@@ -3,15 +3,15 @@
 
 #version 450 core
 
+layout(constant_id = 1) const float radius = 0.1f;
+layout(constant_id = 2) const float stroke = 0.01f;
+
 layout(push_constant, std430) uniform PushConstantObject {
     int millisec;
     vec2 extent;
 } pco;
 
 layout(location = 0) out vec4 frag_color;
-
-const float radius = 0.25f;
-const float stroke = 0.01f;
 
 vec3 get_circle(vec2 center, vec2 coord) {
     float dist = distance(coord, center);

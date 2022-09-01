@@ -4,7 +4,10 @@
 #include "renderer.hpp"
 
 class TriangleApplication : public Renderer<TriangleApplication> {
-  friend class Renderer<TriangleApplication>;
+  using this_class = TriangleApplication;
+  using base_class = Renderer<this_class>;
+
+  friend base_class;
 
 private:
   auto app_init(QueueFamilyIndices &queue_indices) -> void;

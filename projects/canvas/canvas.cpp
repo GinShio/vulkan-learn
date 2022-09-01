@@ -4,6 +4,7 @@
 #include "create.hpp"
 #include "scope_guard.hpp"
 
+#include <math.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -32,10 +33,16 @@ namespace {
 ::std::array<uint16_t, 6> indices{0, 1, 2, 1, 2, 3};
 
 struct PushConstantObject {
-  int millisec;
+  ::glm::int32_t millisec;
   uint32_t : 1; // out of range if delete it
   ::glm::vec2 extent;
 } pco;
+
+struct SpecializationConstantData {
+  float PI{::acos(-1.f)};
+  float radius{0.25f};
+  float stroke{0.01f};
+} scd;
 
 auto create_render_pass(::vk::Device &device,
                         SwapchainRequiredInfo &required_info)
@@ -114,6 +121,23 @@ auto CanvasApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
       buffers, ::vk::MemoryPropertyFlagBits::eDeviceLocal);
 
   this->layout_ = create_pipeline_layout(this->device_);
+  ::std::array<::vk::SpecializationMapEntry, 3> entries;
+  entries[0]
+      .setConstantID(0)
+      .setSize(sizeof(SpecializationConstantData::PI))
+      .setOffset(offsetof(SpecializationConstantData, PI));
+  entries[1]
+      .setConstantID(1)
+      .setSize(sizeof(SpecializationConstantData::radius))
+      .setOffset(offsetof(SpecializationConstantData, radius));
+  entries[2]
+      .setConstantID(2)
+      .setSize(sizeof(SpecializationConstantData::stroke))
+      .setOffset(offsetof(SpecializationConstantData, stroke));
+  ::vk::SpecializationInfo special_info;
+  special_info.setMapEntries(entries)
+      .setDataSize(sizeof(SpecializationConstantData))
+      .setPData(&scd);
   ::vk::PipelineShaderStageCreateInfo vert_stage;
   vert_stage.setStage(::vk::ShaderStageFlagBits::eVertex)
       .setModule(this->create_shader_module(shader_path / "main.vert.spv"))
@@ -122,7 +146,8 @@ auto CanvasApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
   frag_stage.setStage(::vk::ShaderStageFlagBits::eFragment)
       .setModule(
           this->create_shader_module(shader_path / (shader_name + ".frag.spv")))
-      .setPName("main");
+      .setPName("main")
+      .setPSpecializationInfo(&special_info);
   this->pipeline_ = this->create_pipeline({vert_stage, frag_stage});
 
   pco.extent = {this->required_info_.extent.width,

@@ -89,7 +89,7 @@ template <typename App> auto Renderer<App>::init() -> void {
   this->fences_ =
       create_fences(this->device_, this->required_info_.image_count);
 
-  this->underlying()->app_init(queue_indices);
+  this->underlying()->App::this_class::app_init(queue_indices);
 }
 
 template <typename App>
@@ -115,7 +115,7 @@ auto Renderer<App>::create_pipeline(
     -> ::vk::Pipeline {
   // vertex input
   auto [attr_descs, bind_desc] =
-      this->underlying()->get_vertex_input_description();
+      this->underlying()->App::this_class::get_vertex_input_description();
   ::vk::PipelineVertexInputStateCreateInfo vertex_input;
   vertex_input.setVertexAttributeDescriptions(attr_descs)
       .setVertexBindingDescriptions(bind_desc);
@@ -181,7 +181,7 @@ template <typename App> auto Renderer<App>::run() -> void {
 }
 
 template <typename App> auto Renderer<App>::destroy() -> void {
-  this->underlying()->app_destroy();
+  this->underlying()->App::this_class::app_destroy();
 
   for (decltype(required_info_.image_count) i = 0;
        i < required_info_.image_count; ++i) {

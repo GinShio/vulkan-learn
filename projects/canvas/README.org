@@ -1,0 +1,23 @@
+* Canvas
+
+some variables from host
+
+** push_constant
++ memory layout :: std430
+
+|----------+---------+------------------------------|
+| field    | type    | comment                      |
+|----------+---------+------------------------------|
+| millisec | int32_t | unix timestamp (millisecond) |
+| extent   | vec2    | window's width and height    |
+
+** specialization constant
+
+|--------+-------+----+---------|
+| field  | type  | id | comment |
+|--------+-------+----+---------|
+| PI     | float |  0 |         |
+| radius | float |  1 |         |
+| stroke | float |  2 |         |
+
+** uniform

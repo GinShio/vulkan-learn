@@ -4,7 +4,10 @@
 #include "renderer.hpp"
 
 class CanvasApplication : public Renderer<CanvasApplication> {
-  friend class Renderer<CanvasApplication>;
+  using this_class = CanvasApplication;
+  using base_class = Renderer<this_class>;
+
+  friend base_class;
 
 private:
   auto app_init(QueueFamilyIndices &queue_indices) -> void;
