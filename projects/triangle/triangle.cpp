@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <limits>
 #include <tuple>
 #include <utility>
@@ -36,10 +37,6 @@ MVP ebo{
     // project
     ::glm::mat4{1.f},
 };
-
-constexpr float kDelta{0.8e-3f};
-
-constexpr float kEsp{1e-6f};
 
 auto create_render_pass(::vk::Device &device,
                         SwapchainRequiredInfo &required_info)
@@ -242,15 +239,12 @@ auto TriangleApplication::record_command(::vk::CommandBuffer &cbuf,
   cbuf.bindIndexBuffer(this->device_buffers_[1], 0, ::vk::IndexType::eUint16);
   cbuf.bindDescriptorSets(::vk::PipelineBindPoint::eGraphics, this->layout_, 0,
                           this->desc_set_, {});
-  static float color{0.00f};
-  static bool flag{true};
-  if (flag) {
-    color = ::std::clamp(color + kDelta, 0.f, 1.f);
-    flag = 1.f - color > kEsp;
-  } else {
-    color = ::std::clamp(color - kDelta, 0.f, 1.f);
-    flag = color - 0.f < kEsp;
-  }
+
+  auto millisec = ::std::chrono::duration_cast<::std::chrono::milliseconds>(
+                      ::std::chrono::system_clock::now().time_since_epoch())
+                      .count();
+  float color = ::glm::abs(
+      ::glm::mix(.0, 1., ::glm::sin(::glm::radians(millisec / 16.))));
   cbuf.pushConstants(this->layout_, ::vk::ShaderStageFlagBits::eVertex, 0,
                      sizeof(float), &color);
 
