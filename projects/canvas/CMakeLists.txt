@@ -29,4 +29,5 @@ target_glsl_shaders(${PROJECT_NAME} PRIVATE
   main.vert
   shader/helloworld.frag
   shader/circle.frag
+  shader/pacman.frag
   )

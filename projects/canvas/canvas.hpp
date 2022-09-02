@@ -9,6 +9,9 @@ class CanvasApplication : public Renderer<CanvasApplication> {
 
   friend base_class;
 
+public:
+  CanvasApplication();
+
 private:
   auto app_init(QueueFamilyIndices &queue_indices) -> void;
 

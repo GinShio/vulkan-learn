@@ -105,6 +105,10 @@ auto wrap_buffer(::vk::PhysicalDevice &physical, ::vk::Device &device,
 
 } // namespace
 
+CanvasApplication::CanvasApplication() : base_class() {
+  this->window_ = Window{::std::string{"Canvas - "} + shader_name};
+}
+
 auto CanvasApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
   this->render_pass_ = create_render_pass(this->device_, this->required_info_);
   this->framebuffers_ =

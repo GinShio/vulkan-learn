@@ -5,6 +5,7 @@ target("VulkanCanvas")
     add_files("main.vert"
               ,"shader/helloworld.frag"
               ,"shader/circle.frag"
+              ,"shader/pacman.frag"
     )
     add_files("main.cpp", "canvas.cpp")
     add_includedirs(path.join("$(projectdir)", "include"))
