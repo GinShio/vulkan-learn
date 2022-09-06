@@ -7,6 +7,7 @@ enable_clang_tidy()
 add_library(${TARGET_NAME})
 
 target_include_directories(${TARGET_NAME} PUBLIC
+  ${CMAKE_SOURCE_DIR}/third-party
   ${CMAKE_SOURCE_DIR}/include
   )
 

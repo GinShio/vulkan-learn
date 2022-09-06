@@ -24,6 +24,7 @@ private:
 
   ::vk::DeviceMemory device_memory_{nullptr};
   ::std::vector<::vk::Buffer> device_buffers_;
+  ::std::vector<::vk::ShaderModule> shader_modules_;
 };
 
 #endif // CANVAS_HPP_

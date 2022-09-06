@@ -27,6 +27,7 @@ Learning vulkan C++ binding repo
 ├── projects/
 │   ├── canvas/
 │   ├── test/
+│   ├── texture/
 │   └── triangle/
 ├── README.org
 ├── src/
@@ -43,6 +44,7 @@ Learning vulkan C++ binding repo
   |----------+----------------+------------------------------------------|
   | canvas   | VulkanCanvas   | glslang canvas (learn builtin functions) |
   | test     | VulkanTest     | test vulkan SDK                          |
+  | texture  | VulkanTexture  | learn VTF pipeline                       |
   | triangle | VulkanTriangle | draw a triangle (learn VF pipeline)      |
 + src :: common utility implement, target =VulkanBase=
 + video :: project display

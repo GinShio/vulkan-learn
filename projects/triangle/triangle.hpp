@@ -25,6 +25,7 @@ private:
   ::vk::DescriptorSet desc_set_{nullptr};
 
   ::std::vector<::vk::Buffer> device_buffers_;
+  ::std::vector<::vk::ShaderModule> shader_modules_;
 };
 
 #endif // TRIANGLE_HPP_

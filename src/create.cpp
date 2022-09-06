@@ -4,6 +4,7 @@
 #include <assert.h>
 
 #include <algorithm>
+#include <fstream>
 #include <initializer_list>
 #include <iterator>
 #include <limits>
@@ -15,15 +16,12 @@
 
 #include <vulkan/vulkan.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb/stb_image.h"
+
 #ifdef DEBUG
 #include <iostream>
 #endif
-
-namespace {
-template <typename Int> auto gcd(Int num1, Int num2) -> Int {
-  return !num2 ? num1 : gcd(num2, num1 % num2);
-}
-} // namespace
 
 auto create_instance(Window &window,
                      ::std::vector<char const *> const &app_extensions)
@@ -229,25 +227,31 @@ auto query_swapchain_required_info(SDL_Window *window,
   return info;
 }
 
-auto create_image_views(::vk::Device &device,
-                        ::std::vector<::vk::Image> &images,
-                        SwapchainRequiredInfo &required_info)
-    -> ::std::vector<::vk::ImageView> {
-  auto sizz = images.size();
-  ::std::vector<::vk::ImageView> views{sizz, nullptr};
+auto create_image_view(::vk::Device &device, ::vk::Image &image,
+                       ::vk::Format const &format) -> ::vk::ImageView {
   ::vk::ImageViewCreateInfo info;
   info.setViewType(::vk::ImageViewType::e2D)
-      .setFormat(required_info.format.format)
+      .setFormat(format)
       .setComponents(::vk::ComponentMapping{
           ::vk::ComponentSwizzle::eIdentity, ::vk::ComponentSwizzle::eIdentity,
           ::vk::ComponentSwizzle::eIdentity, ::vk::ComponentSwizzle::eIdentity})
+      .setImage(image)
       .setSubresourceRange(::vk::ImageSubresourceRange{
           ::vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
 
-  for (decltype(sizz) i = 0; i < sizz; ++i) {
-    info.setImage(images[i]);
-    views[i] = device.createImageView(info);
-    assert(views[i] && "image view create failed!");
+  ::vk::ImageView view = device.createImageView(info);
+  assert(view && "image view create failed!");
+  return view;
+}
+
+auto create_image_views(::vk::Device &device,
+                        ::std::vector<::vk::Image> &images,
+                        ::vk::Format const &format)
+    -> ::std::vector<::vk::ImageView> {
+  ::std::vector<::vk::ImageView> views;
+  views.reserve(images.size());
+  for (auto &image : images) {
+    views.emplace_back(create_image_view(device, image, format));
   }
   return views;
 }
@@ -307,109 +311,80 @@ auto create_buffer(::vk::Device &device, QueueFamilyIndices &indices,
   return buffer;
 }
 
-//! @brief allocate memory, and bind one buffer
-auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
-                     ::vk::Buffer &buffer, ::vk::MemoryPropertyFlags flag)
-    -> ::vk::DeviceMemory {
-  auto requirement = device.getBufferMemoryRequirements(buffer);
-  auto property = physical.getMemoryProperties();
-  decltype(property.memoryTypeCount) index{property.memoryTypeCount};
-  for (decltype(property.memoryTypeCount) i = 0; i < property.memoryTypeCount;
-       ++i) {
-    if (((requirement.memoryTypeBits & (1 << i)) != 0u) &&
-        (property.memoryTypes[i].propertyFlags & flag)) {
-      index = i;
-      break;
-    }
-  }
-  ::vk::MemoryAllocateInfo info;
-  info.setAllocationSize(requirement.size).setMemoryTypeIndex(index);
-  ::vk::DeviceMemory memory = device.allocateMemory(info);
-  assert(memory && "device memory allocate failed!");
-  device.bindBufferMemory(buffer, memory, 0);
-  return memory;
+auto create_image(::vk::Device &device, uint32_t width, uint32_t height,
+                  ::vk::ImageUsageFlags flag) -> ::vk::Image {
+  ::vk::ImageCreateInfo info;
+  info.setImageType(::vk::ImageType::e2D)
+      .setExtent(::vk::Extent3D{width, height, 1})
+      .setMipLevels(1)
+      .setArrayLayers(1)
+      .setFormat(::vk::Format::eR8G8B8A8Srgb)
+      .setTiling(::vk::ImageTiling::eOptimal)
+      .setInitialLayout(::vk::ImageLayout::eUndefined)
+      .setUsage(flag)
+      .setSharingMode(::vk::SharingMode::eExclusive)
+      .setSamples(::vk::SampleCountFlagBits::e1);
+
+  auto image = device.createImage(info);
+  assert(image && "image create failed!");
+  return image;
 }
 
-//! @brief allocate memory, and bind multi buffers
-auto allocate_memory(::vk::PhysicalDevice &physical, ::vk::Device &device,
-                     ::std::vector<::vk::Buffer> const &buffers,
-                     ::vk::MemoryPropertyFlags flag) -> ::vk::DeviceMemory {
-  // get memory properties: allocation size and type index
-  auto property = physical.getMemoryProperties();
-  decltype(property.memoryHeapCount) index{property.memoryTypeCount};
+auto create_shader_module(::vk::Device &device,
+                          ::std::filesystem::path const &filename)
+    -> ::vk::ShaderModule {
+  ::std::ifstream ifs{filename, ::std::ios::binary | ::std::ios::in};
+  ::std::vector<char> content{(::std::istreambuf_iterator<char>(ifs)),
+                              ::std::istreambuf_iterator<char>()};
+  ifs.close();
 
-  uint32_t memory_type = ::std::numeric_limits<uint32_t>::max();
-  ::vk::DeviceSize size{0};
-  for (auto const &buffer : buffers) {
-    auto requirement = device.getBufferMemoryRequirements(buffer);
-    size += (requirement.size + requirement.alignment - 1) /
-            requirement.alignment * requirement.alignment;
-    if (gcd(size, requirement.alignment) != requirement.alignment) {
-      size = ((size / requirement.alignment) + 1) * requirement.alignment;
-    }
-    memory_type &= requirement.memoryTypeBits;
-  }
-  for (decltype(property.memoryTypeCount) i = 0; i < property.memoryTypeCount;
-       ++i) {
-    if (((memory_type & (1 << i)) != 0u) &&
-        (property.memoryTypes[i].propertyFlags & flag)) {
-      index = i;
-      break;
-    }
-  }
-
-  // allocate memory
-  ::vk::MemoryAllocateInfo info;
-  info.setAllocationSize(size).setMemoryTypeIndex(index);
-  ::vk::DeviceMemory memory = device.allocateMemory(info);
-  assert(memory && "device memory allocate failed!");
-
-  ::std::vector<::vk::Buffer> device_buffers;
-  ::vk::DeviceSize offset{0};
-  for (decltype(::std::declval<decltype(buffers)>().size())
-           i = 0,
-           end = buffers.size();
-       i < end; ++i) {
-    device.bindBufferMemory(buffers[i], memory, offset);
-    device_buffers.emplace_back(buffers[i]);
-    if (i + 1 == end) {
-      continue;
-    }
-    auto curr = device.getBufferMemoryRequirements(buffers[i]);
-    auto next = device.getBufferMemoryRequirements(buffers[i + 1]);
-    offset +=
-        (curr.size + next.alignment - 1) / next.alignment * next.alignment;
-    if (gcd(offset, next.alignment) != next.alignment) {
-      offset = ((offset / next.alignment) + 1) * next.alignment;
-    }
-  }
-  return memory;
+  ::vk::ShaderModuleCreateInfo info;
+  info.setCodeSize(content.size())
+      .setPCode(reinterpret_cast<uint32_t const *>(content.data()));
+  auto shader_module = device.createShaderModule(info);
+  assert(shader_module && "shader module create failed!");
+  return shader_module;
 }
 
-//! @brief allocate memory, bind multi buffers, and copy buffers
-auto allocate_memory(
-    ::vk::PhysicalDevice &physical, ::vk::Device &device,
-    ::vk::CommandPool &pool, ::vk::Queue &queue,
-    ::std::vector<::std::tuple<::vk::Buffer, ::vk::DeviceMemory, ::vk::Buffer,
-                               ::vk::DeviceSize>> const &buffers,
-    ::vk::MemoryPropertyFlags flag)
-    -> ::std::pair<::std::vector<::vk::Buffer>, ::vk::DeviceMemory> {
-  ::std::vector<::vk::Buffer> device_buffers;
-  ::std::transform(buffers.begin(), buffers.end(),
-                   ::std::back_inserter(device_buffers),
-                   [](auto &val) { return ::std::get<2>(val); });
-  ::vk::DeviceMemory memory =
-      allocate_memory(physical, device, device_buffers, flag);
+auto create_image_data(::std::filesystem::path const &filename)
+    -> ::std::tuple<unsigned char const *, uint32_t, uint32_t> {
+  ::std::ifstream ifs{filename, ::std::ios::binary | ::std::ios::in};
+  ::std::vector<stbi_uc> content{(::std::istreambuf_iterator<char>(ifs)),
+                                 ::std::istreambuf_iterator<char>()};
+  ifs.close();
 
-  // NOTE: in windows, buffer requirement size not equal needed size, copy
-  // buffer will warning
-  for (auto const &[host_buffer, host_memory, device_buffer, size] : buffers) {
-    copy_buffer(device, pool, queue, host_buffer, device_buffer, size);
-    // destroy host memory and host buffer
-    device.freeMemory(host_memory);
-    device.destroyBuffer(host_buffer);
+  int width;
+  int height;
+  stbi_uc *pixels = stbi_load_from_memory(
+      content.data(), content.size(), &width, &height, nullptr, STBI_rgb_alpha);
+  assert(pixels && "failed to load texture image!");
+  MAKE_SCOPE_GUARD { stbi_image_free(pixels); };
+  size_t size = width * height * 4;
+  auto *data = new unsigned char[size];
+  ::memcpy(data, pixels, size);
+  return ::std::make_tuple(data, width, height);
+}
+
+auto create_semaphores(::vk::Device &device, size_t size)
+    -> ::std::vector<::vk::Semaphore> {
+  ::vk::SemaphoreCreateInfo info;
+  ::std::vector<::vk::Semaphore> ret{size};
+  for (decltype(size) i = 0; i < size; ++i) {
+    ret[i] = device.createSemaphore(info);
+    assert(ret[i] && "semophare create failed!");
   }
-  return ::std::make_pair(::std::move(device_buffers), memory);
+  return ret;
+}
+
+auto create_fences(::vk::Device &device, size_t size)
+    -> ::std::vector<::vk::Fence> {
+  ::vk::FenceCreateInfo info;
+  ::std::vector<::vk::Fence> ret{size};
+  for (decltype(size) i = 0; i < size; ++i) {
+    ret[i] = device.createFence(info);
+    assert(ret[i] && "fence create failed!");
+  }
+  return ret;
 }
 
 auto copy_data(::vk::Device &device, ::vk::DeviceMemory &memory, size_t offset,
@@ -439,24 +414,62 @@ auto copy_buffer(::vk::Device &device, ::vk::CommandPool &pool,
   device.waitIdle();
 }
 
-auto create_semaphores(::vk::Device &device, size_t size)
-    -> ::std::vector<::vk::Semaphore> {
-  ::vk::SemaphoreCreateInfo info;
-  ::std::vector<::vk::Semaphore> ret{size};
-  for (decltype(size) i = 0; i < size; ++i) {
-    ret[i] = device.createSemaphore(info);
-    assert(ret[i] && "semophare create failed!");
-  }
-  return ret;
-}
+auto copy_image(::vk::Device &device, ::vk::CommandPool &pool,
+                ::vk::Queue &queue, ::vk::Buffer const &src,
+                ::vk::Image const &dest, uint32_t width, uint32_t height)
+    -> void {
+  ::vk::ImageSubresourceRange range;
+  range.setAspectMask(::vk::ImageAspectFlagBits::eColor)
+      .setBaseMipLevel(0)
+      .setLevelCount(1)
+      .setBaseArrayLayer(0)
+      .setLayerCount(1);
+  ::vk::ImageMemoryBarrier barrier;
+  barrier.setSrcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+      .setDstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+      .setImage(dest)
+      .setSubresourceRange(range);
 
-auto create_fences(::vk::Device &device, size_t size)
-    -> ::std::vector<::vk::Fence> {
-  ::vk::FenceCreateInfo info;
-  ::std::vector<::vk::Fence> ret{size};
-  for (decltype(size) i = 0; i < size; ++i) {
-    ret[i] = device.createFence(info);
-    assert(ret[i] && "fence create failed!");
-  }
-  return ret;
+  auto transfer_cmd_buffers = allocate_command_buffers(device, pool, 1);
+  ::vk::CommandBufferBeginInfo begin_info;
+  begin_info.setFlags(::vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+  MAKE_SCOPE_GUARD { device.freeCommandBuffers(pool, transfer_cmd_buffers); };
+  transfer_cmd_buffers.front().begin(begin_info);
+
+  barrier.setOldLayout(::vk::ImageLayout::eUndefined)
+      .setNewLayout(::vk::ImageLayout::eTransferDstOptimal)
+      .setSrcAccessMask(::vk::AccessFlagBits::eNone)
+      .setDstAccessMask(::vk::AccessFlagBits::eTransferWrite);
+  transfer_cmd_buffers.front().pipelineBarrier(
+      ::vk::PipelineStageFlagBits::eTopOfPipe,
+      ::vk::PipelineStageFlagBits::eTransfer,
+      ::vk::DependencyFlagBits::eByRegion, 0, nullptr, 0, nullptr, 1, &barrier);
+  ::vk::ImageSubresourceLayers layer;
+  layer.setAspectMask(::vk::ImageAspectFlagBits::eColor)
+      .setMipLevel(0)
+      .setBaseArrayLayer(0)
+      .setLayerCount(1);
+  ::vk::BufferImageCopy region;
+  region.setBufferOffset(0)
+      .setBufferRowLength(0)
+      .setBufferImageHeight(0)
+      .setImageSubresource(layer)
+      .setImageOffset(::vk::Offset3D{0, 0, 0})
+      .setImageExtent(::vk::Extent3D{width, height, 1});
+  transfer_cmd_buffers.front().copyBufferToImage(
+      src, dest, ::vk::ImageLayout::eTransferDstOptimal, region);
+  barrier.setOldLayout(::vk::ImageLayout::eTransferDstOptimal)
+      .setNewLayout(::vk::ImageLayout::eReadOnlyOptimal)
+      .setSrcAccessMask(::vk::AccessFlagBits::eTransferWrite)
+      .setDstAccessMask(::vk::AccessFlagBits::eShaderRead);
+  transfer_cmd_buffers.front().pipelineBarrier(
+      ::vk::PipelineStageFlagBits::eTransfer,
+      ::vk::PipelineStageFlagBits::eFragmentShader,
+      ::vk::DependencyFlagBits::eByRegion, 0, nullptr, 0, nullptr, 1, &barrier);
+
+  transfer_cmd_buffers.front().end();
+  ::vk::SubmitInfo submit_info;
+  submit_info.setCommandBuffers(transfer_cmd_buffers);
+  queue.submit(submit_info);
+  device.waitIdle();
 }

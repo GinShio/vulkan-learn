@@ -4,8 +4,6 @@
 #include "create.hpp"
 #include "window.hpp"
 
-#include <filesystem>
-#include <fstream>
 #include <initializer_list>
 #include <iterator>
 #include <limits>
@@ -13,22 +11,22 @@
 #include <vulkan/vulkan.hpp>
 
 template <typename App> class Renderer {
+  friend class Window;
+
 public:
   auto init() -> void;
 
   auto run() -> void;
   auto destroy() -> void;
 
-  static auto render(Renderer<App> *app) -> void;
-
 protected:
-  auto create_shader_module(::std::filesystem::path const &filename)
-      -> ::vk::ShaderModule;
   auto create_pipeline(
       ::std::initializer_list<::vk::PipelineShaderStageCreateInfo> stages)
       -> ::vk::Pipeline;
 
 private:
+  static auto render(Renderer<App> *app) -> void;
+
   auto underlying() -> App * { return reinterpret_cast<App *>(this); }
 
 public:
@@ -50,14 +48,13 @@ protected:
   ::vk::PipelineLayout layout_{nullptr};
   ::vk::Pipeline pipeline_{nullptr};
 
-  ::std::vector<::vk::Image> images_;
-  ::std::vector<::vk::ImageView> image_views_;
+  ::std::vector<::vk::Image> swapchain_images_;
+  ::std::vector<::vk::ImageView> swapchain_imageviews_;
   ::std::vector<::vk::Framebuffer> framebuffers_;
   ::std::vector<::vk::CommandBuffer> cmd_buffers_;
   ::std::vector<::vk::Semaphore> image_avaliables_;
   ::std::vector<::vk::Semaphore> present_finishes_;
   ::std::vector<::vk::Fence> fences_;
-  ::std::vector<::vk::ShaderModule> shader_modules_;
 };
 
 template <typename App> auto Renderer<App>::init() -> void {
@@ -75,9 +72,11 @@ template <typename App> auto Renderer<App>::init() -> void {
       this->window_.get_window(), this->physical_, this->surface_, 5);
   this->swapchain_ = create_swapchain(this->device_, this->surface_,
                                       queue_indices, this->required_info_);
-  this->images_ = this->device_.getSwapchainImagesKHR(this->swapchain_);
-  this->image_views_ =
-      create_image_views(this->device_, this->images_, this->required_info_);
+  this->swapchain_images_ =
+      this->device_.getSwapchainImagesKHR(this->swapchain_);
+  this->swapchain_imageviews_ =
+      create_image_views(this->device_, this->swapchain_images_,
+                         this->required_info_.format.format);
   this->cmd_pool_ = create_command_pool(this->device_, queue_indices);
   this->cmd_buffers_ = allocate_command_buffers(
       this->device_, this->cmd_pool_, this->required_info_.image_count);
@@ -90,23 +89,6 @@ template <typename App> auto Renderer<App>::init() -> void {
       create_fences(this->device_, this->required_info_.image_count);
 
   this->underlying()->App::this_class::app_init(queue_indices);
-}
-
-template <typename App>
-auto Renderer<App>::create_shader_module(
-    ::std::filesystem::path const &filename) -> ::vk::ShaderModule {
-  ::std::ifstream ifs{filename, ::std::ios::binary | ::std::ios::in};
-  ::std::vector<char> content{(::std::istreambuf_iterator<char>(ifs)),
-                              ::std::istreambuf_iterator<char>()};
-  ifs.close();
-
-  ::vk::ShaderModuleCreateInfo info;
-  info.setCodeSize(content.size())
-      .setPCode(reinterpret_cast<uint32_t const *>(content.data()));
-  auto shader_module = this->device_.createShaderModule(info);
-  assert(shader_module && "shader module create failed!");
-  this->shader_modules_.emplace_back(shader_module);
-  return shader_module;
 }
 
 template <typename App>
@@ -192,10 +174,7 @@ template <typename App> auto Renderer<App>::destroy() -> void {
 
   this->device_.freeCommandBuffers(this->cmd_pool_, this->cmd_buffers_);
   this->device_.destroyCommandPool(this->cmd_pool_);
-  for (auto &shader : this->shader_modules_) {
-    this->device_.destroyShaderModule(shader);
-  }
-  for (auto &view : this->image_views_) {
+  for (auto &view : this->swapchain_imageviews_) {
     this->device_.destroyImageView(view);
   }
   this->device_.destroySwapchainKHR(this->swapchain_);

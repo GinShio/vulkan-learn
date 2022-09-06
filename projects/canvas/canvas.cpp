@@ -34,8 +34,7 @@ namespace {
 
 struct PushConstantObject {
   ::glm::int32_t millisec;
-  uint32_t : 1; // out of range if delete it
-  ::glm::vec2 extent;
+  alignas(8)::glm::vec2 extent;
 } pco;
 
 struct SpecializationConstantData {
@@ -83,26 +82,6 @@ auto create_pipeline_layout(::vk::Device &device) -> ::vk::PipelineLayout {
   return layout;
 }
 
-template <typename T, size_t N>
-auto wrap_buffer(::vk::PhysicalDevice &physical, ::vk::Device &device,
-                 QueueFamilyIndices &queue_indices,
-                 ::std::array<T, N> const &data, ::vk::BufferUsageFlags flag)
-    -> ::std::tuple<::vk::Buffer, ::vk::DeviceMemory, ::vk::Buffer,
-                    ::vk::DeviceSize> {
-  ::vk::DeviceSize size = sizeof(data);
-  ::vk::Buffer host_buffer = create_buffer(
-      device, queue_indices, size, ::vk::BufferUsageFlagBits::eTransferSrc);
-  ::vk::DeviceMemory host_memory =
-      allocate_memory(physical, device, host_buffer,
-                      ::vk::MemoryPropertyFlagBits::eHostVisible |
-                          ::vk::MemoryPropertyFlagBits::eHostCoherent);
-  copy_data(device, host_memory, 0, size, data.data());
-  ::vk::Buffer device_buffer =
-      create_buffer(device, queue_indices, size,
-                    ::vk::BufferUsageFlagBits::eTransferDst | flag);
-  return ::std::make_tuple(host_buffer, host_memory, device_buffer, size);
-}
-
 } // namespace
 
 CanvasApplication::CanvasApplication() : base_class() {
@@ -112,7 +91,7 @@ CanvasApplication::CanvasApplication() : base_class() {
 auto CanvasApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
   this->render_pass_ = create_render_pass(this->device_, this->required_info_);
   this->framebuffers_ =
-      create_frame_buffers(this->device_, this->image_views_,
+      create_frame_buffers(this->device_, this->swapchain_imageviews_,
                            this->render_pass_, this->required_info_);
   ::std::vector buffers = {
       wrap_buffer(this->physical_, this->device_, queue_indices, vertices,
@@ -120,9 +99,11 @@ auto CanvasApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
       wrap_buffer(this->physical_, this->device_, queue_indices, indices,
                   ::vk::BufferUsageFlagBits::eIndexBuffer),
   };
-  ::std::tie(this->device_buffers_, this->device_memory_) = allocate_memory(
-      this->physical_, this->device_, this->cmd_pool_, this->graphics_queue_,
-      buffers, ::vk::MemoryPropertyFlagBits::eDeviceLocal);
+  ::std::tie(this->device_buffers_, this->device_memory_) =
+      allocate_memory<::vk::Buffer>(this->physical_, this->device_,
+                                    this->cmd_pool_, this->graphics_queue_,
+                                    buffers,
+                                    ::vk::MemoryPropertyFlagBits::eDeviceLocal);
 
   this->layout_ = create_pipeline_layout(this->device_);
   ::std::array<::vk::SpecializationMapEntry, 3> entries;
@@ -142,14 +123,18 @@ auto CanvasApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
   special_info.setMapEntries(entries)
       .setDataSize(sizeof(SpecializationConstantData))
       .setPData(&scd);
+  this->shader_modules_ = {
+      create_shader_module(this->device_, shader_path / "main.vert.spv"),
+      create_shader_module(this->device_,
+                           shader_path / (shader_name + ".frag.spv")),
+  };
   ::vk::PipelineShaderStageCreateInfo vert_stage;
   vert_stage.setStage(::vk::ShaderStageFlagBits::eVertex)
-      .setModule(this->create_shader_module(shader_path / "main.vert.spv"))
+      .setModule(this->shader_modules_[0])
       .setPName("main");
   ::vk::PipelineShaderStageCreateInfo frag_stage;
   frag_stage.setStage(::vk::ShaderStageFlagBits::eFragment)
-      .setModule(
-          this->create_shader_module(shader_path / (shader_name + ".frag.spv")))
+      .setModule(this->shader_modules_[1])
       .setPName("main")
       .setPSpecializationInfo(&special_info);
   this->pipeline_ = this->create_pipeline({vert_stage, frag_stage});
@@ -161,6 +146,9 @@ auto CanvasApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
 auto CanvasApplication::app_destroy() -> void {
   this->device_.destroyPipeline(this->pipeline_);
   this->device_.destroyPipelineLayout(this->layout_);
+  for (auto &shader : this->shader_modules_) {
+    this->device_.destroyShaderModule(shader);
+  }
   this->device_.freeMemory(this->device_memory_);
   for (auto &buffer : this->device_buffers_) {
     this->device_.destroyBuffer(buffer);

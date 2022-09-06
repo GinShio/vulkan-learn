@@ -20,6 +20,11 @@ extern ::std::filesystem::path shader_path;
 
 namespace {
 
+struct Vertex {
+  ::glm::vec2 position;
+  ::glm::vec3 color;
+};
+
 // triangle
 ::std::array vertices{
     Vertex{{0.f, -0.5f}, {1.f, 0.f, 0.f}},
@@ -110,37 +115,16 @@ auto allocate_descriptor_set(::vk::Device &device, ::vk::DescriptorPool &pool,
   ::std::vector<::vk::DescriptorSet> sets = device.allocateDescriptorSets(info);
   assert(sets[0] && "descriptor set allocate failed!");
 
-  vk::DescriptorBufferInfo buffer_info;
+  ::vk::DescriptorBufferInfo buffer_info;
   buffer_info.setOffset(0).setRange(sizeof(ebo)).setBuffer(buffer);
-  vk::WriteDescriptorSet write_set;
+  ::vk::WriteDescriptorSet write_set;
   write_set.setDescriptorType(::vk::DescriptorType::eUniformBuffer)
       .setDstSet(sets[0])
       .setDstArrayElement(0)
       .setDstBinding(0)
       .setBufferInfo(buffer_info);
-
   device.updateDescriptorSets(write_set, {});
   return sets[0];
-}
-
-template <typename T, size_t N>
-auto wrap_buffer(::vk::PhysicalDevice &physical, ::vk::Device &device,
-                 QueueFamilyIndices &queue_indices,
-                 ::std::array<T, N> const &data, ::vk::BufferUsageFlags flag)
-    -> ::std::tuple<::vk::Buffer, ::vk::DeviceMemory, ::vk::Buffer,
-                    ::vk::DeviceSize> {
-  ::vk::DeviceSize size = sizeof(data);
-  ::vk::Buffer host_buffer = create_buffer(
-      device, queue_indices, size, ::vk::BufferUsageFlagBits::eTransferSrc);
-  ::vk::DeviceMemory host_memory =
-      allocate_memory(physical, device, host_buffer,
-                      ::vk::MemoryPropertyFlagBits::eHostVisible |
-                          ::vk::MemoryPropertyFlagBits::eHostCoherent);
-  copy_data(device, host_memory, 0, size, data.data());
-  ::vk::Buffer device_buffer =
-      create_buffer(device, queue_indices, size,
-                    ::vk::BufferUsageFlagBits::eTransferDst | flag);
-  return ::std::make_tuple(host_buffer, host_memory, device_buffer, size);
 }
 
 } // namespace
@@ -148,19 +132,21 @@ auto wrap_buffer(::vk::PhysicalDevice &physical, ::vk::Device &device,
 auto TriangleApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
   this->render_pass_ = create_render_pass(this->device_, this->required_info_);
   this->framebuffers_ =
-      create_frame_buffers(this->device_, this->image_views_,
+      create_frame_buffers(this->device_, this->swapchain_imageviews_,
                            this->render_pass_, this->required_info_);
   ::std::vector buffers = {
       wrap_buffer(this->physical_, this->device_, queue_indices, vertices,
                   ::vk::BufferUsageFlagBits::eVertexBuffer),
       wrap_buffer(this->physical_, this->device_, queue_indices, indices,
                   ::vk::BufferUsageFlagBits::eIndexBuffer),
-      wrap_buffer(this->physical_, this->device_, queue_indices,
-                  ::std::array{ebo}, ::vk::BufferUsageFlagBits::eUniformBuffer),
+      wrap_buffer(this->physical_, this->device_, queue_indices, &ebo, 1,
+                  ::vk::BufferUsageFlagBits::eUniformBuffer),
   };
-  ::std::tie(this->device_buffers_, this->device_memory_) = allocate_memory(
-      this->physical_, this->device_, this->cmd_pool_, this->graphics_queue_,
-      buffers, ::vk::MemoryPropertyFlagBits::eDeviceLocal);
+  ::std::tie(this->device_buffers_, this->device_memory_) =
+      allocate_memory<::vk::Buffer>(this->physical_, this->device_,
+                                    this->cmd_pool_, this->graphics_queue_,
+                                    buffers,
+                                    ::vk::MemoryPropertyFlagBits::eDeviceLocal);
 
   this->set_layout_ = create_descriptor_set_layout(this->device_);
   this->desc_pool_ =
@@ -169,14 +155,18 @@ auto TriangleApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
       allocate_descriptor_set(this->device_, this->desc_pool_,
                               this->set_layout_, this->device_buffers_.back());
 
+  this->shader_modules_ = {
+      create_shader_module(this->device_, shader_path / "main.vert.spv"),
+      create_shader_module(this->device_, shader_path / "main.frag.spv"),
+  };
   this->layout_ = create_pipeline_layout(this->device_, this->set_layout_);
   ::vk::PipelineShaderStageCreateInfo vert_stage;
   vert_stage.setStage(::vk::ShaderStageFlagBits::eVertex)
-      .setModule(this->create_shader_module(shader_path / "main.vert.spv"))
+      .setModule(this->shader_modules_[0])
       .setPName("main");
   ::vk::PipelineShaderStageCreateInfo frag_stage;
   frag_stage.setStage(::vk::ShaderStageFlagBits::eFragment)
-      .setModule(this->create_shader_module(shader_path / "main.frag.spv"))
+      .setModule(this->shader_modules_[1])
       .setPName("main");
   this->pipeline_ = this->create_pipeline({vert_stage, frag_stage});
 }
@@ -184,6 +174,9 @@ auto TriangleApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
 auto TriangleApplication::app_destroy() -> void {
   this->device_.destroyPipeline(this->pipeline_);
   this->device_.destroyPipelineLayout(this->layout_);
+  for (auto &shader : this->shader_modules_) {
+    this->device_.destroyShaderModule(shader);
+  }
   this->device_.freeDescriptorSets(this->desc_pool_, this->desc_set_);
   this->device_.destroyDescriptorPool(this->desc_pool_);
   this->device_.destroyDescriptorSetLayout(set_layout_);
