@@ -15,14 +15,10 @@
 #include <utility>
 
 #include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_enums.hpp>
-#include <vulkan/vulkan_handles.hpp>
-#include <vulkan/vulkan_structs.hpp>
 
 #include <iostream>
 
 extern ::std::filesystem::path shader_path;
-extern ::std::filesystem::path image_path;
 
 namespace {
 
@@ -68,11 +64,11 @@ auto create_render_pass(::vk::Device &device,
   return render_pass;
 }
 
-auto create_pipeline_layout(::vk::Device &device,
-                            ::vk::DescriptorSetLayout &set_layout)
+auto create_pipeline_layout(
+    ::vk::Device &device, ::std::vector<::vk::DescriptorSetLayout> &set_layouts)
     -> ::vk::PipelineLayout {
   ::vk::PipelineLayoutCreateInfo info;
-  info.setSetLayouts(set_layout);
+  info.setSetLayouts(set_layouts);
   ::vk::PipelineLayout layout = device.createPipelineLayout(info);
   assert(layout && "pipeline layout create failed!");
   return layout;
@@ -120,24 +116,27 @@ auto create_descriptor_pool(::vk::Device &device, size_t max_size)
 auto allocate_descriptor_set(::vk::Device &device, ::vk::DescriptorPool &pool,
                              ::std::vector<::vk::ImageView> &views,
                              ::vk::Sampler &sampler)
-    -> ::std::pair<::vk::DescriptorSetLayout,
+    -> ::std::pair<::std::vector<::vk::DescriptorSetLayout>,
                    ::std::vector<::vk::DescriptorSet>> {
-  ::std::vector<::vk::DescriptorSetLayoutBinding> bindings;
-  bindings.reserve(views.size());
+  ::std::vector<::vk::DescriptorSetLayout> layouts;
+  layouts.reserve(views.size());
+  ::vk::DescriptorSetLayoutBinding binding;
   for (auto end = views.size(), i = static_cast<decltype(end)>(0); i < end;
        ++i) {
-    bindings.emplace_back(::vk::DescriptorSetLayoutBinding{
-        static_cast<uint32_t>(i), ::vk::DescriptorType::eCombinedImageSampler,
-        1, ::vk::ShaderStageFlagBits::eFragment});
+    binding = ::vk::DescriptorSetLayoutBinding{
+        0, ::vk::DescriptorType::eCombinedImageSampler, 1,
+        ::vk::ShaderStageFlagBits::eFragment};
+    ::vk::DescriptorSetLayout layout =
+        device.createDescriptorSetLayout(::vk::DescriptorSetLayoutCreateInfo{
+            ::vk::DescriptorSetLayoutCreateFlags{}, 1, &binding});
+    assert(layout && "descriptor set layout create failed!");
+    layouts.emplace_back(layout);
   }
-  ::vk::DescriptorSetLayout layout =
-      device.createDescriptorSetLayout(::vk::DescriptorSetLayoutCreateInfo{
-          ::vk::DescriptorSetLayoutCreateFlags{},
-          static_cast<uint32_t>(bindings.size()), bindings.data()});
-  assert(layout && "descriptor set layout create failed!");
 
   ::vk::DescriptorSetAllocateInfo info;
-  info.setSetLayouts(layout).setDescriptorSetCount(1).setDescriptorPool(pool);
+  info.setSetLayouts(layouts)
+      .setDescriptorSetCount(views.size())
+      .setDescriptorPool(pool);
   ::std::vector<::vk::DescriptorSet> sets = device.allocateDescriptorSets(info);
   assert(!sets.empty() && "descriptor set allocate failed!");
 
@@ -149,13 +148,13 @@ auto allocate_descriptor_set(::vk::Device &device, ::vk::DescriptorPool &pool,
     image_info.setImageView(views[i]);
     ::vk::WriteDescriptorSet write_set;
     write_set.setDescriptorType(::vk::DescriptorType::eCombinedImageSampler)
-        .setDstSet(sets[0])
+        .setDstSet(sets[i])
         .setDstArrayElement(0)
-        .setDstBinding(i)
+        .setDstBinding(0)
         .setImageInfo(image_info);
     device.updateDescriptorSets(write_set, {});
   }
-  return ::std::make_pair(layout, sets);
+  return ::std::make_pair(layouts, sets);
 }
 
 } // namespace
@@ -178,8 +177,8 @@ auto TextureApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
                                     buffers,
                                     ::vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-  auto rin_image = create_image_data(image_path / "KagamineRin.png");
-  auto len_image = create_image_data(image_path / "KagamineLen.png");
+  auto rin_image = create_image_data("images/KagamineRin.png");
+  auto len_image = create_image_data("images/KagamineLen.png");
   MAKE_SCOPE_GUARD {
     delete[] ::std::get<0>(rin_image);
     delete[] ::std::get<0>(len_image);
@@ -202,7 +201,7 @@ auto TextureApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
   this->sampler_ = create_texture_sampler(this->physical_, this->device_);
   this->desc_pool_ =
       create_descriptor_pool(this->device_, this->required_info_.image_count);
-  ::std::tie(this->set_layout_, this->desc_sets_) =
+  ::std::tie(this->set_layouts_, this->desc_sets_) =
       allocate_descriptor_set(this->device_, this->desc_pool_,
                               this->texture_imageviews_, this->sampler_);
 
@@ -210,7 +209,7 @@ auto TextureApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
       create_shader_module(this->device_, shader_path / "main.vert.spv"),
       create_shader_module(this->device_, shader_path / "main.frag.spv"),
   };
-  this->layout_ = create_pipeline_layout(this->device_, this->set_layout_);
+  this->layout_ = create_pipeline_layout(this->device_, this->set_layouts_);
   ::vk::PipelineShaderStageCreateInfo vert_stage;
   vert_stage.setStage(::vk::ShaderStageFlagBits::eVertex)
       .setModule(this->shader_modules_[0])
@@ -229,7 +228,9 @@ auto TextureApplication::app_destroy() -> void {
     this->device_.destroyShaderModule(shader);
   }
   this->device_.freeDescriptorSets(this->desc_pool_, this->desc_sets_);
-  this->device_.destroyDescriptorSetLayout(this->set_layout_);
+  for (auto &setlayout : this->set_layouts_) {
+    this->device_.destroyDescriptorSetLayout(setlayout);
+  }
   this->device_.destroyDescriptorPool(this->desc_pool_);
   this->device_.destroySampler(this->sampler_);
   this->device_.freeMemory(this->texture_memory_);

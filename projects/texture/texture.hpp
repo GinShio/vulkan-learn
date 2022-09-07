@@ -22,12 +22,12 @@ private:
   ::vk::DeviceMemory texture_memory_{nullptr};
   ::vk::DeviceMemory device_memory_{nullptr};
   ::vk::Sampler sampler_{nullptr};
-  ::vk::DescriptorSetLayout set_layout_{nullptr};
   ::vk::DescriptorPool desc_pool_{nullptr};
 
   ::std::vector<::vk::Buffer> device_buffers_;
   ::std::vector<::vk::Image> texture_images_;
   ::std::vector<::vk::ImageView> texture_imageviews_;
+  ::std::vector<::vk::DescriptorSetLayout> set_layouts_;
   ::std::vector<::vk::DescriptorSet> desc_sets_;
   ::std::vector<::vk::ShaderModule> shader_modules_;
 };

@@ -8,18 +8,14 @@
 namespace fs = ::std::filesystem;
 
 ::fs::path shader_path;
-::fs::path image_path;
 
 auto main(int argc, char const *const argv[]) -> int {
-  if (argc < 3) {
+  if (argc < 2) {
     ::std::cerr << "usage: " << argv[0] << " "
-                << "shader_path"
-                << " "
-                << "image_path" << ::std::endl;
+                << "shader_path" << ::std::endl;
     return EXIT_FAILURE;
   }
   shader_path = ::fs::path{argv[1]};
-  image_path = ::fs::path{argv[2]};
 
   try {
     TextureApplication app;
