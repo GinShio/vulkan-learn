@@ -1,6 +1,7 @@
 #ifndef CREATE_HPP_
 #define CREATE_HPP_
 
+#include "base_type.hpp"
 #include "window.hpp"
 
 #include <filesystem>
@@ -83,8 +84,7 @@ auto create_shader_module(::vk::Device &device,
                           ::std::filesystem::path const &filename)
     -> ::vk::ShaderModule;
 
-auto create_image_data(::std::filesystem::path const &filename)
-    -> ::std::tuple<unsigned char const *, uint32_t, uint32_t>;
+auto create_image_data(::std::filesystem::path const &filename) -> Image;
 
 auto create_semaphores(::vk::Device &device, size_t size)
     -> ::std::vector<::vk::Semaphore>;
@@ -139,10 +139,9 @@ auto wrap_buffer(::vk::PhysicalDevice &physical, ::vk::Device &device,
     -> ::std::tuple<::vk::Buffer, ::vk::DeviceMemory, ::vk::Buffer,
                     ::vk::DeviceSize>;
 
-template <typename T>
 auto wrap_image(::vk::PhysicalDevice &physical, ::vk::Device &device,
-                QueueFamilyIndices &indices, T const *data, uint32_t width,
-                uint32_t height, ::vk::ImageUsageFlags flag)
+                QueueFamilyIndices &indices, Image const &image,
+                ::vk::ImageUsageFlags flag)
     -> ::std::tuple<::vk::Buffer, ::vk::DeviceMemory, ::vk::Image, uint32_t,
                     uint32_t>;
 

@@ -12,8 +12,9 @@ target_include_directories(${TARGET_NAME} PUBLIC
   )
 
 target_sources(${TARGET_NAME} PRIVATE
-  window.cpp
+  base_type.cpp
   create.cpp
+  window.cpp
   )
 
 target_link_libraries(${TARGET_NAME} PRIVATE

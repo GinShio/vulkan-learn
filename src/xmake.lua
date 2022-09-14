@@ -1,7 +1,8 @@
 target("VulkanBase")
     set_kind("static")
-    add_files("window.cpp"
+    add_files("base_type.cpp"
               ,"create.cpp"
+              ,"window.cpp"
     )
     add_includedirs(path.join("$(projectdir)", "include"))
     add_includedirs(path.join("$(projectdir)", "third-party"))

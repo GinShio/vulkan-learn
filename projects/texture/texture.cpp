@@ -16,8 +16,6 @@
 
 #include <vulkan/vulkan.hpp>
 
-#include <iostream>
-
 extern ::std::filesystem::path shader_path;
 
 namespace {
@@ -165,7 +163,7 @@ auto TextureApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
       create_frame_buffers(this->device_, this->swapchain_imageviews_,
                            this->render_pass_, this->required_info_);
 
-  ::std::vector buffers = {
+  ::std::vector buffers{
       wrap_buffer(this->physical_, this->device_, queue_indices, vertices,
                   ::vk::BufferUsageFlagBits::eVertexBuffer),
       wrap_buffer(this->physical_, this->device_, queue_indices, indices,
@@ -177,19 +175,13 @@ auto TextureApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
                                     buffers,
                                     ::vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-  auto rin_image = create_image_data("images/KagamineRin.png");
-  auto len_image = create_image_data("images/KagamineLen.png");
-  MAKE_SCOPE_GUARD {
-    delete[] ::std::get<0>(rin_image);
-    delete[] ::std::get<0>(len_image);
-  };
-  ::std::vector images = {
+  ::std::vector images{
       wrap_image(this->physical_, this->device_, queue_indices,
-                 ::std::get<0>(rin_image), ::std::get<1>(rin_image),
-                 ::std::get<2>(rin_image), ::vk::ImageUsageFlagBits::eSampled),
+                 create_image_data("images/KagamineRin.png"),
+                 ::vk::ImageUsageFlagBits::eSampled),
       wrap_image(this->physical_, this->device_, queue_indices,
-                 ::std::get<0>(len_image), ::std::get<1>(len_image),
-                 ::std::get<2>(len_image), ::vk::ImageUsageFlagBits::eSampled),
+                 create_image_data("images/KagamineLen.png"),
+                 ::vk::ImageUsageFlagBits::eSampled),
   };
   ::std::tie(this->texture_images_, this->texture_memory_) =
       allocate_memory<::vk::Image>(this->physical_, this->device_,
@@ -205,11 +197,11 @@ auto TextureApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
       allocate_descriptor_set(this->device_, this->desc_pool_,
                               this->texture_imageviews_, this->sampler_);
 
+  this->layout_ = create_pipeline_layout(this->device_, this->set_layouts_);
   this->shader_modules_ = {
       create_shader_module(this->device_, shader_path / "main.vert.spv"),
       create_shader_module(this->device_, shader_path / "main.frag.spv"),
   };
-  this->layout_ = create_pipeline_layout(this->device_, this->set_layouts_);
   ::vk::PipelineShaderStageCreateInfo vert_stage;
   vert_stage.setStage(::vk::ShaderStageFlagBits::eVertex)
       .setModule(this->shader_modules_[0])

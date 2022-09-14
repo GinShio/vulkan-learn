@@ -156,26 +156,6 @@ auto wrap_buffer(::vk::PhysicalDevice &physical, ::vk::Device &device,
   return ::std::make_tuple(host_buffer, host_memory, device_buffer, size);
 }
 
-template <typename T>
-auto wrap_image(::vk::PhysicalDevice &physical, ::vk::Device &device,
-                QueueFamilyIndices &indices, T const *data, uint32_t width,
-                uint32_t height, ::vk::ImageUsageFlags flag)
-    -> ::std::tuple<::vk::Buffer, ::vk::DeviceMemory, ::vk::Image, uint32_t,
-                    uint32_t> {
-  ::vk::DeviceSize size = width * height * 4;
-  ::vk::Buffer host_buffer = create_buffer(
-      device, indices, size, ::vk::BufferUsageFlagBits::eTransferSrc);
-  ::vk::DeviceMemory host_memory =
-      allocate_memory(physical, device, host_buffer,
-                      ::vk::MemoryPropertyFlagBits::eHostVisible |
-                          ::vk::MemoryPropertyFlagBits::eHostCoherent);
-  copy_data(device, host_memory, 0, size, data);
-  ::vk::Image device_buffer = create_image(
-      device, width, height, ::vk::ImageUsageFlagBits::eTransferDst | flag);
-  return ::std::make_tuple(host_buffer, host_memory, device_buffer, width,
-                           height);
-}
-
 template <typename T, size_t N>
 auto wrap_buffer(::vk::PhysicalDevice &physical, ::vk::Device &device,
                  QueueFamilyIndices &indices, ::std::array<T, N> const &data,

@@ -16,9 +16,6 @@
 
 #include <vulkan/vulkan.hpp>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb/stb_image.h"
-
 #ifdef DEBUG
 #include <iostream>
 #endif
@@ -346,23 +343,12 @@ auto create_shader_module(::vk::Device &device,
   return shader_module;
 }
 
-auto create_image_data(::std::filesystem::path const &filename)
-    -> ::std::tuple<unsigned char const *, uint32_t, uint32_t> {
+auto create_image_data(::std::filesystem::path const &filename) -> Image {
   ::std::ifstream ifs{filename, ::std::ios::binary | ::std::ios::in};
-  ::std::vector<stbi_uc> content{(::std::istreambuf_iterator<char>(ifs)),
-                                 ::std::istreambuf_iterator<char>()};
+  ::std::vector<unsigned char> content{(::std::istreambuf_iterator<char>(ifs)),
+                                       ::std::istreambuf_iterator<char>()};
   ifs.close();
-
-  int width;
-  int height;
-  stbi_uc *pixels = stbi_load_from_memory(
-      content.data(), content.size(), &width, &height, nullptr, STBI_rgb_alpha);
-  assert(pixels && "failed to load texture image!");
-  MAKE_SCOPE_GUARD { stbi_image_free(pixels); };
-  size_t size = width * height * 4;
-  auto *data = new unsigned char[size];
-  ::memcpy(data, pixels, size);
-  return ::std::make_tuple(data, width, height);
+  return Image{content};
 }
 
 auto create_semaphores(::vk::Device &device, size_t size)
@@ -472,4 +458,24 @@ auto copy_image(::vk::Device &device, ::vk::CommandPool &pool,
   submit_info.setCommandBuffers(transfer_cmd_buffers);
   queue.submit(submit_info);
   device.waitIdle();
+}
+
+auto wrap_image(::vk::PhysicalDevice &physical, ::vk::Device &device,
+                QueueFamilyIndices &indices, Image const &image,
+                ::vk::ImageUsageFlags flag)
+    -> ::std::tuple<::vk::Buffer, ::vk::DeviceMemory, ::vk::Image, uint32_t,
+                    uint32_t> {
+  ::vk::DeviceSize size = image.get_size();
+  ::vk::Buffer host_buffer = create_buffer(
+      device, indices, size, ::vk::BufferUsageFlagBits::eTransferSrc);
+  ::vk::DeviceMemory host_memory =
+      allocate_memory(physical, device, host_buffer,
+                      ::vk::MemoryPropertyFlagBits::eHostVisible |
+                          ::vk::MemoryPropertyFlagBits::eHostCoherent);
+  copy_data(device, host_memory, 0, size, image.get_data());
+  ::vk::Image device_buffer =
+      create_image(device, image.get_width(), image.get_height(),
+                   ::vk::ImageUsageFlagBits::eTransferDst | flag);
+  return ::std::make_tuple(host_buffer, host_memory, device_buffer,
+                           image.get_width(), image.get_height());
 }
