@@ -86,6 +86,12 @@ auto create_shader_module(::vk::Device &device,
 
 auto create_image_data(::std::filesystem::path const &filename) -> Image;
 
+auto create_descriptor_pool(::vk::Device &device, size_t max_size,
+                            ::vk::DescriptorType type) -> ::vk::DescriptorPool;
+
+auto create_texture_sampler(::vk::PhysicalDevice &physical,
+                            ::vk::Device &device) -> ::vk::Sampler;
+
 auto create_semaphores(::vk::Device &device, size_t size)
     -> ::std::vector<::vk::Semaphore>;
 
@@ -151,6 +157,19 @@ auto wrap_buffer(::vk::PhysicalDevice &physical, ::vk::Device &device,
                  ::vk::BufferUsageFlags flag)
     -> ::std::tuple<::vk::Buffer, ::vk::DeviceMemory, ::vk::Buffer,
                     ::vk::DeviceSize>;
+
+template <typename Buffer,
+          typename Iter = typename ::std::vector<Buffer>::iterator,
+          bool IsBuffer = ::std::is_same_v<Buffer, ::vk::Buffer>,
+          bool IsView = ::std::is_same_v<Buffer, ::vk::ImageView>,
+          typename Attr = ::std::enable_if_t<
+              IsBuffer || IsView,
+              ::std::conditional_t<IsBuffer, size_t, ::vk::Sampler>>>
+auto allocate_descriptor_set(::vk::Device &device, Iter begin, Iter end,
+                             ::vk::DescriptorType type,
+                             ::vk::ShaderStageFlags stage, Attr const &attr)
+    -> ::std::tuple<::vk::DescriptorPool, ::vk::DescriptorSetLayout,
+                    ::std::vector<::vk::DescriptorSet>>;
 
 #include "create.tcc"
 

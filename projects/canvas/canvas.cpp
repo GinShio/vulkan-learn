@@ -82,6 +82,24 @@ auto create_pipeline_layout(::vk::Device &device) -> ::vk::PipelineLayout {
   return layout;
 }
 
+auto get_special_map_entries()
+    -> ::std::array<::vk::SpecializationMapEntry, 3> {
+  ::std::array<::vk::SpecializationMapEntry, 3> entries;
+  entries[0]
+      .setConstantID(0)
+      .setSize(sizeof(SpecializationConstantData::PI))
+      .setOffset(offsetof(SpecializationConstantData, PI));
+  entries[1]
+      .setConstantID(1)
+      .setSize(sizeof(SpecializationConstantData::radius))
+      .setOffset(offsetof(SpecializationConstantData, radius));
+  entries[2]
+      .setConstantID(2)
+      .setSize(sizeof(SpecializationConstantData::stroke))
+      .setOffset(offsetof(SpecializationConstantData, stroke));
+  return entries;
+}
+
 } // namespace
 
 CanvasApplication::CanvasApplication() : base_class() {
@@ -101,24 +119,11 @@ auto CanvasApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
   };
   ::std::tie(this->device_buffers_, this->device_memory_) =
       allocate_memory<::vk::Buffer>(this->physical_, this->device_,
-                                    this->cmd_pool_, this->graphics_queue_,
-                                    buffers,
+                                    this->cmdpool_, this->graphics_, buffers,
                                     ::vk::MemoryPropertyFlagBits::eDeviceLocal);
 
   this->layout_ = create_pipeline_layout(this->device_);
-  ::std::array<::vk::SpecializationMapEntry, 3> entries;
-  entries[0]
-      .setConstantID(0)
-      .setSize(sizeof(SpecializationConstantData::PI))
-      .setOffset(offsetof(SpecializationConstantData, PI));
-  entries[1]
-      .setConstantID(1)
-      .setSize(sizeof(SpecializationConstantData::radius))
-      .setOffset(offsetof(SpecializationConstantData, radius));
-  entries[2]
-      .setConstantID(2)
-      .setSize(sizeof(SpecializationConstantData::stroke))
-      .setOffset(offsetof(SpecializationConstantData, stroke));
+  auto entries = get_special_map_entries();
   ::vk::SpecializationInfo special_info;
   special_info.setMapEntries(entries)
       .setDataSize(sizeof(SpecializationConstantData))

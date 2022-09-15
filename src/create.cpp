@@ -351,6 +351,43 @@ auto create_image_data(::std::filesystem::path const &filename) -> Image {
   return Image{content};
 }
 
+auto create_descriptor_pool(::vk::Device &device, size_t max_size,
+                            ::vk::DescriptorType type) -> ::vk::DescriptorPool {
+  ::vk::DescriptorPoolSize size{type, static_cast<uint32_t>(max_size)};
+  ::vk::DescriptorPoolCreateInfo info;
+  info.setPoolSizes(size)
+      .setMaxSets(::std::numeric_limits<uint16_t>::max())
+      .setFlags(::vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
+  auto pool = device.createDescriptorPool(info);
+  assert(pool && "descriptor pool create failed!");
+  return pool;
+}
+
+auto create_texture_sampler(::vk::PhysicalDevice &physical,
+                            ::vk::Device &device) -> ::vk::Sampler {
+  auto properties = physical.getProperties();
+  ::vk::SamplerCreateInfo info;
+  info.setMagFilter(::vk::Filter::eLinear)
+      .setMinFilter(::vk::Filter::eLinear)
+      .setAddressModeU(::vk::SamplerAddressMode::eRepeat)
+      .setAddressModeV(::vk::SamplerAddressMode::eRepeat)
+      .setAddressModeW(::vk::SamplerAddressMode::eRepeat)
+      .setAnisotropyEnable(VK_TRUE)
+      .setMaxAnisotropy(properties.limits.maxSamplerAnisotropy)
+      .setBorderColor(::vk::BorderColor::eIntOpaqueBlack)
+      .setUnnormalizedCoordinates(VK_FALSE)
+      .setCompareEnable(VK_FALSE)
+      .setCompareOp(::vk::CompareOp::eAlways)
+      .setMipmapMode(::vk::SamplerMipmapMode::eLinear)
+      .setMipLodBias(.0f)
+      .setMinLod(.0f)
+      .setMaxLod(.0f);
+
+  ::vk::Sampler sampler = device.createSampler(info);
+  assert(sampler && "sampler create failed!");
+  return sampler;
+}
+
 auto create_semaphores(::vk::Device &device, size_t size)
     -> ::std::vector<::vk::Semaphore> {
   ::vk::SemaphoreCreateInfo info;

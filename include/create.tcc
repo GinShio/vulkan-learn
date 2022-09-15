@@ -165,4 +165,53 @@ auto wrap_buffer(::vk::PhysicalDevice &physical, ::vk::Device &device,
   return wrap_buffer(physical, device, indices, data.data(), N, flag);
 }
 
+template <typename Buffer, typename Iter, bool IsBuffer, bool IsView,
+          typename Attr>
+auto allocate_descriptor_set(::vk::Device &device, Iter begin, Iter end,
+                             ::vk::DescriptorType type,
+                             ::vk::ShaderStageFlags stage, Attr const &attr)
+    -> ::std::tuple<::vk::DescriptorPool, ::vk::DescriptorSetLayout,
+                    ::std::vector<::vk::DescriptorSet>> {
+  size_t size = ::std::distance(begin, end);
+  ::std::vector<::vk::DescriptorSetLayoutBinding> bindings;
+  for (decltype(size) i = 0; i < size; ++i) {
+    bindings.emplace_back(i, type, 1, stage);
+  }
+  ::vk::DescriptorSetLayout layout =
+      device.createDescriptorSetLayout(::vk::DescriptorSetLayoutCreateInfo{
+          ::vk::DescriptorSetLayoutCreateFlags{}, static_cast<uint32_t>(size),
+          bindings.data()});
+  assert(layout && "uniform descriptor set layout create failed!");
+  ::vk::DescriptorPool pool =
+      create_descriptor_pool(device, static_cast<uint32_t>(size), type);
+  ::vk::DescriptorSetAllocateInfo alloc_info;
+  alloc_info.setSetLayouts(layout)
+      .setDescriptorPool(pool)
+      .setDescriptorSetCount(1);
+  ::std::vector<::vk::DescriptorSet> sets =
+      device.allocateDescriptorSets(alloc_info);
+
+  ::vk::WriteDescriptorSet write_set;
+  ::std::conditional_t<IsBuffer, ::vk::DescriptorBufferInfo,
+                       ::vk::DescriptorImageInfo>
+      desc_info;
+  for (decltype(size) i = 0; i < size; ++i) {
+    write_set.setDescriptorType(type)
+        .setDstSet(sets.back())
+        .setDstArrayElement(0)
+        .setDstBinding(i);
+    if constexpr (IsBuffer) {
+      desc_info.setOffset(0).setRange(attr).setBuffer(begin[i]);
+      write_set.setBufferInfo(desc_info);
+    } else {
+      desc_info.setImageView(begin[i]).setSampler(attr).setImageLayout(
+          ::vk::ImageLayout::eShaderReadOnlyOptimal);
+      write_set.setImageInfo(desc_info);
+    }
+    device.updateDescriptorSets(write_set, {});
+  }
+
+  return ::std::make_tuple(pool, layout, sets);
+}
+
 #endif // CREATE_TCC

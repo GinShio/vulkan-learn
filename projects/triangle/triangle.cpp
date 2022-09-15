@@ -96,17 +96,6 @@ auto create_descriptor_set_layout(::vk::Device &device)
   return layout;
 }
 
-auto create_descriptor_pool(::vk::Device &device, size_t max_size)
-    -> ::vk::DescriptorPool {
-  static ::vk::DescriptorPoolSize size{::vk::DescriptorType::eUniformBuffer, 1};
-  ::vk::DescriptorPoolCreateInfo info;
-  info.setPoolSizes(size).setMaxSets(max_size).setFlags(
-      ::vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
-  auto pool = device.createDescriptorPool(info);
-  assert(pool && "descriptor pool create failed!");
-  return pool;
-}
-
 auto allocate_descriptor_set(::vk::Device &device, ::vk::DescriptorPool &pool,
                              ::vk::DescriptorSetLayout &layout,
                              ::vk::Buffer &buffer) -> ::vk::DescriptorSet {
@@ -144,13 +133,13 @@ auto TriangleApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
   };
   ::std::tie(this->device_buffers_, this->device_memory_) =
       allocate_memory<::vk::Buffer>(this->physical_, this->device_,
-                                    this->cmd_pool_, this->graphics_queue_,
-                                    buffers,
+                                    this->cmdpool_, this->graphics_, buffers,
                                     ::vk::MemoryPropertyFlagBits::eDeviceLocal);
 
   this->set_layout_ = create_descriptor_set_layout(this->device_);
   this->desc_pool_ =
-      create_descriptor_pool(this->device_, this->required_info_.image_count);
+      create_descriptor_pool(this->device_, this->required_info_.image_count,
+                             ::vk::DescriptorType::eUniformBuffer);
   this->desc_set_ =
       allocate_descriptor_set(this->device_, this->desc_pool_,
                               this->set_layout_, this->device_buffers_.back());

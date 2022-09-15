@@ -14,6 +14,7 @@
 #include <tuple>
 #include <utility>
 
+#include <glm/gtc/matrix_transform.hpp>
 #include <vulkan/vulkan.hpp>
 
 extern ::std::filesystem::path shader_path;
@@ -27,13 +28,36 @@ struct Vertex {
 
 // triangle
 ::std::array vertices{
-    Vertex{{-.5f, -.5f}, {1.f, 0.f}},
-    Vertex{{.5f, -.5f}, {0.f, 0.f}},
-    Vertex{{.5f, .5f}, {0.f, 1.f}},
-    Vertex{{-.5f, .5f}, {1.f, 1.f}},
+    // rin
+    Vertex{{.125f, -1.f}, {1.f, 0.f}},
+    Vertex{{.875f, -1.f}, {0.f, 0.f}},
+    Vertex{{.875f, 0.f}, {0.f, 1.f}},
+    Vertex{{.125f, 0.f}, {1.f, 1.f}},
+    // len
+    Vertex{{-.875f, -1.f}, {1.f, 0.f}},
+    Vertex{{-.125f, -1.f}, {0.f, 0.f}},
+    Vertex{{-.125f, 0.f}, {0.f, 1.f}},
+    Vertex{{-.875f, 0.f}, {1.f, 1.f}},
 };
 
-::std::array<uint16_t, 6> indices{0, 1, 2, 2, 3, 0};
+::std::array<uint16_t, 12> indices{0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4};
+
+::std::array ebos{
+    // rin
+    MVP{
+        ::glm::rotate(::glm::mat4(1.f), ::glm::radians(-20.f),
+                      ::glm::vec3(0.f, 1.f, 0.f)),
+        ::glm::translate(::glm::mat4(1.f), glm::vec3(0.f, 0.5f, -3.6f)),
+        ::glm::perspective(::glm::radians(30.f), 4.f / 3.f, .1f, 5.f),
+    },
+    // len
+    MVP{
+        ::glm::rotate(::glm::mat4(1.f), ::glm::radians(20.f),
+                      ::glm::vec3(0.f, 1.f, 0.f)),
+        ::glm::translate(::glm::mat4(1.f), glm::vec3(0.f, 0.5f, -3.6f)),
+        ::glm::perspective(::glm::radians(30.f), 4.f / 3.f, .1f, 5.f),
+    },
+};
 
 auto create_render_pass(::vk::Device &device,
                         SwapchainRequiredInfo &required_info)
@@ -72,89 +96,6 @@ auto create_pipeline_layout(
   return layout;
 }
 
-auto create_texture_sampler(::vk::PhysicalDevice &physical,
-                            ::vk::Device &device) -> ::vk::Sampler {
-  auto properties = physical.getProperties();
-  ::vk::SamplerCreateInfo info;
-  info.setMagFilter(::vk::Filter::eLinear)
-      .setMinFilter(::vk::Filter::eLinear)
-      .setAddressModeU(::vk::SamplerAddressMode::eRepeat)
-      .setAddressModeV(::vk::SamplerAddressMode::eRepeat)
-      .setAddressModeW(::vk::SamplerAddressMode::eRepeat)
-      .setAnisotropyEnable(VK_TRUE)
-      .setMaxAnisotropy(properties.limits.maxSamplerAnisotropy)
-      .setBorderColor(::vk::BorderColor::eIntOpaqueBlack)
-      .setUnnormalizedCoordinates(VK_FALSE)
-      .setCompareEnable(VK_FALSE)
-      .setCompareOp(::vk::CompareOp::eAlways)
-      .setMipmapMode(::vk::SamplerMipmapMode::eLinear)
-      .setMipLodBias(.0f)
-      .setMinLod(.0f)
-      .setMaxLod(.0f);
-
-  ::vk::Sampler sampler = device.createSampler(info);
-  assert(sampler && "sampler create failed!");
-  return sampler;
-}
-
-auto create_descriptor_pool(::vk::Device &device, size_t max_size)
-    -> ::vk::DescriptorPool {
-  static ::vk::DescriptorPoolSize size{
-      ::vk::DescriptorType::eCombinedImageSampler,
-      static_cast<uint32_t>(max_size)};
-  ::vk::DescriptorPoolCreateInfo info;
-  info.setFlags(::vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet)
-      .setPoolSizes(size)
-      .setMaxSets(max_size);
-  auto pool = device.createDescriptorPool(info);
-  assert(pool && "descriptor pool create failed!");
-  return pool;
-}
-
-auto allocate_descriptor_set(::vk::Device &device, ::vk::DescriptorPool &pool,
-                             ::std::vector<::vk::ImageView> &views,
-                             ::vk::Sampler &sampler)
-    -> ::std::pair<::std::vector<::vk::DescriptorSetLayout>,
-                   ::std::vector<::vk::DescriptorSet>> {
-  ::std::vector<::vk::DescriptorSetLayout> layouts;
-  layouts.reserve(views.size());
-  ::vk::DescriptorSetLayoutBinding binding;
-  for (auto end = views.size(), i = static_cast<decltype(end)>(0); i < end;
-       ++i) {
-    binding = ::vk::DescriptorSetLayoutBinding{
-        0, ::vk::DescriptorType::eCombinedImageSampler, 1,
-        ::vk::ShaderStageFlagBits::eFragment};
-    ::vk::DescriptorSetLayout layout =
-        device.createDescriptorSetLayout(::vk::DescriptorSetLayoutCreateInfo{
-            ::vk::DescriptorSetLayoutCreateFlags{}, 1, &binding});
-    assert(layout && "descriptor set layout create failed!");
-    layouts.emplace_back(layout);
-  }
-
-  ::vk::DescriptorSetAllocateInfo info;
-  info.setSetLayouts(layouts)
-      .setDescriptorSetCount(views.size())
-      .setDescriptorPool(pool);
-  ::std::vector<::vk::DescriptorSet> sets = device.allocateDescriptorSets(info);
-  assert(!sets.empty() && "descriptor set allocate failed!");
-
-  ::vk::DescriptorImageInfo image_info;
-  image_info.setImageLayout(::vk::ImageLayout::eShaderReadOnlyOptimal)
-      .setSampler(sampler);
-  for (auto end = views.size(), i = static_cast<decltype(end)>(0); i < end;
-       ++i) {
-    image_info.setImageView(views[i]);
-    ::vk::WriteDescriptorSet write_set;
-    write_set.setDescriptorType(::vk::DescriptorType::eCombinedImageSampler)
-        .setDstSet(sets[i])
-        .setDstArrayElement(0)
-        .setDstBinding(0)
-        .setImageInfo(image_info);
-    device.updateDescriptorSets(write_set, {});
-  }
-  return ::std::make_pair(layouts, sets);
-}
-
 } // namespace
 
 auto TextureApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
@@ -168,12 +109,19 @@ auto TextureApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
                   ::vk::BufferUsageFlagBits::eVertexBuffer),
       wrap_buffer(this->physical_, this->device_, queue_indices, indices,
                   ::vk::BufferUsageFlagBits::eIndexBuffer),
+      wrap_buffer(this->physical_, this->device_, queue_indices, ebos.data(), 1,
+                  ::vk::BufferUsageFlagBits::eUniformBuffer),
+      wrap_buffer(this->physical_, this->device_, queue_indices, &ebos[1], 1,
+                  ::vk::BufferUsageFlagBits::eUniformBuffer),
   };
   ::std::tie(this->device_buffers_, this->device_memory_) =
       allocate_memory<::vk::Buffer>(this->physical_, this->device_,
-                                    this->cmd_pool_, this->graphics_queue_,
-                                    buffers,
+                                    this->cmdpool_, this->graphics_, buffers,
                                     ::vk::MemoryPropertyFlagBits::eDeviceLocal);
+  auto [pool0, layout0, sets0] = allocate_descriptor_set<::vk::Buffer>(
+      this->device_, this->device_buffers_.begin() + 2,
+      this->device_buffers_.end(), ::vk::DescriptorType::eUniformBuffer,
+      ::vk::ShaderStageFlagBits::eVertex, sizeof(MVP));
 
   ::std::vector images{
       wrap_image(this->physical_, this->device_, queue_indices,
@@ -185,18 +133,21 @@ auto TextureApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
   };
   ::std::tie(this->texture_images_, this->texture_memory_) =
       allocate_memory<::vk::Image>(this->physical_, this->device_,
-                                   this->cmd_pool_, this->graphics_queue_,
-                                   images,
+                                   this->cmdpool_, this->graphics_, images,
                                    ::vk::MemoryPropertyFlagBits::eDeviceLocal);
   this->texture_imageviews_ = create_image_views(
       this->device_, this->texture_images_, ::vk::Format::eR8G8B8A8Srgb);
   this->sampler_ = create_texture_sampler(this->physical_, this->device_);
-  this->desc_pool_ =
-      create_descriptor_pool(this->device_, this->required_info_.image_count);
-  ::std::tie(this->set_layouts_, this->desc_sets_) =
-      allocate_descriptor_set(this->device_, this->desc_pool_,
-                              this->texture_imageviews_, this->sampler_);
+  auto [pool1, layout1, sets1] = allocate_descriptor_set<::vk::ImageView>(
+      this->device_, this->texture_imageviews_.begin(),
+      this->texture_imageviews_.end(),
+      ::vk::DescriptorType::eCombinedImageSampler,
+      ::vk::ShaderStageFlagBits::eFragment, this->sampler_);
 
+  this->desc_pools_ = {pool0, pool1};
+  this->set_layouts_ = {layout0, layout1};
+  this->desc_sets_.insert(this->desc_sets_.end(), sets0.begin(), sets0.end());
+  this->desc_sets_.insert(this->desc_sets_.end(), sets1.begin(), sets1.end());
   this->layout_ = create_pipeline_layout(this->device_, this->set_layouts_);
   this->shader_modules_ = {
       create_shader_module(this->device_, shader_path / "main.vert.spv"),
@@ -219,11 +170,14 @@ auto TextureApplication::app_destroy() -> void {
   for (auto &shader : this->shader_modules_) {
     this->device_.destroyShaderModule(shader);
   }
-  this->device_.freeDescriptorSets(this->desc_pool_, this->desc_sets_);
   for (auto &setlayout : this->set_layouts_) {
     this->device_.destroyDescriptorSetLayout(setlayout);
   }
-  this->device_.destroyDescriptorPool(this->desc_pool_);
+  for (auto end = this->desc_pools_.size(), i = static_cast<decltype(end)>(0);
+       i < end; ++i) {
+    this->device_.freeDescriptorSets(this->desc_pools_[i], this->desc_sets_[i]);
+    this->device_.destroyDescriptorPool(this->desc_pools_[i]);
+  }
   this->device_.destroySampler(this->sampler_);
   this->device_.freeMemory(this->texture_memory_);
   for (auto end = this->texture_images_.size(),

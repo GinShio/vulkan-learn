@@ -38,10 +38,10 @@ protected:
   ::vk::SurfaceKHR surface_{nullptr};
   ::vk::PhysicalDevice physical_{nullptr};
   ::vk::Device device_{nullptr};
-  ::vk::Queue graphics_queue_{nullptr};
-  ::vk::Queue present_queue_{nullptr};
+  ::vk::Queue graphics_{nullptr};
+  ::vk::Queue present_{nullptr};
   ::vk::SwapchainKHR swapchain_{nullptr};
-  ::vk::CommandPool cmd_pool_{nullptr};
+  ::vk::CommandPool cmdpool_{nullptr};
 
   SwapchainRequiredInfo required_info_;
   ::vk::RenderPass render_pass_{nullptr};
@@ -64,9 +64,9 @@ template <typename App> auto Renderer<App>::init() -> void {
   QueueFamilyIndices queue_indices =
       pickup_queue_family(this->physical_, this->surface_);
   this->device_ = create_logic_device(this->physical_, queue_indices);
-  this->graphics_queue_ =
+  this->graphics_ =
       this->device_.getQueue(queue_indices.graphics_indices.value(), 0);
-  this->present_queue_ =
+  this->present_ =
       this->device_.getQueue(queue_indices.present_indices.value(), 0);
   this->required_info_ = query_swapchain_required_info(
       this->window_.get_window(), this->physical_, this->surface_, 5);
@@ -77,9 +77,9 @@ template <typename App> auto Renderer<App>::init() -> void {
   this->swapchain_imageviews_ =
       create_image_views(this->device_, this->swapchain_images_,
                          this->required_info_.format.format);
-  this->cmd_pool_ = create_command_pool(this->device_, queue_indices);
+  this->cmdpool_ = create_command_pool(this->device_, queue_indices);
   this->cmd_buffers_ = allocate_command_buffers(
-      this->device_, this->cmd_pool_, this->required_info_.image_count);
+      this->device_, this->cmdpool_, this->required_info_.image_count);
 
   this->image_avaliables_ =
       create_semaphores(this->device_, this->required_info_.image_count);
@@ -172,8 +172,8 @@ template <typename App> auto Renderer<App>::destroy() -> void {
     this->device_.destroySemaphore(this->image_avaliables_[i]);
   }
 
-  this->device_.freeCommandBuffers(this->cmd_pool_, this->cmd_buffers_);
-  this->device_.destroyCommandPool(this->cmd_pool_);
+  this->device_.freeCommandBuffers(this->cmdpool_, this->cmd_buffers_);
+  this->device_.destroyCommandPool(this->cmdpool_);
   for (auto &view : this->swapchain_imageviews_) {
     this->device_.destroyImageView(view);
   }
@@ -206,13 +206,13 @@ template <typename App> auto Renderer<App>::render(Renderer<App> *app) -> void {
       .setWaitSemaphores(app->image_avaliables_[app->current_frame_])
       .setSignalSemaphores(app->present_finishes_[app->current_frame_])
       .setWaitDstStageMask(flags);
-  app->graphics_queue_.submit(submit_info, app->fences_[app->current_frame_]);
+  app->graphics_.submit(submit_info, app->fences_[app->current_frame_]);
 
   ::vk::PresentInfoKHR present_info;
   present_info.setImageIndices(image_index)
       .setSwapchains(app->swapchain_)
       .setWaitSemaphores(app->present_finishes_[app->current_frame_]);
-  [[maybe_unused]] auto result = app->present_queue_.presentKHR(present_info);
+  [[maybe_unused]] auto result = app->present_.presentKHR(present_info);
   assert(result == ::vk::Result::eSuccess && "present failed!");
   result = app->device_.waitForFences(app->fences_[app->current_frame_], true,
                                       ::std::numeric_limits<uint64_t>::max());
