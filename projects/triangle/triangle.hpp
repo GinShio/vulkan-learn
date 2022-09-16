@@ -22,10 +22,10 @@ private:
   ::vk::DeviceMemory device_memory_{nullptr};
   ::vk::DescriptorSetLayout set_layout_{nullptr};
   ::vk::DescriptorPool desc_pool_{nullptr};
-  ::vk::DescriptorSet desc_set_{nullptr};
 
   ::std::vector<::vk::Buffer> device_buffers_;
   ::std::vector<::vk::ShaderModule> shader_modules_;
+  ::std::vector<::vk::DescriptorSet> desc_sets_;
 };
 
 #endif // TRIANGLE_HPP_

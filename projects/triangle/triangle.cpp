@@ -84,38 +84,6 @@ auto create_pipeline_layout(::vk::Device &device,
   return layout;
 }
 
-auto create_descriptor_set_layout(::vk::Device &device)
-    -> ::vk::DescriptorSetLayout {
-  static auto binding =
-      ::vk::DescriptorSetLayoutBinding{0, ::vk::DescriptorType::eUniformBuffer,
-                                       1, ::vk::ShaderStageFlagBits::eVertex};
-  static ::vk::DescriptorSetLayoutCreateInfo info{
-      ::vk::DescriptorSetLayoutCreateFlags{}, 1, &binding};
-  ::vk::DescriptorSetLayout layout = device.createDescriptorSetLayout(info);
-  assert(layout && "descriptor set layout create failed!");
-  return layout;
-}
-
-auto allocate_descriptor_set(::vk::Device &device, ::vk::DescriptorPool &pool,
-                             ::vk::DescriptorSetLayout &layout,
-                             ::vk::Buffer &buffer) -> ::vk::DescriptorSet {
-  ::vk::DescriptorSetAllocateInfo info;
-  info.setSetLayouts(layout).setDescriptorPool(pool).setDescriptorSetCount(1);
-  ::std::vector<::vk::DescriptorSet> sets = device.allocateDescriptorSets(info);
-  assert(sets[0] && "descriptor set allocate failed!");
-
-  ::vk::DescriptorBufferInfo buffer_info;
-  buffer_info.setOffset(0).setRange(sizeof(ebo)).setBuffer(buffer);
-  ::vk::WriteDescriptorSet write_set;
-  write_set.setDescriptorType(::vk::DescriptorType::eUniformBuffer)
-      .setDstSet(sets[0])
-      .setDstArrayElement(0)
-      .setDstBinding(0)
-      .setBufferInfo(buffer_info);
-  device.updateDescriptorSets(write_set, {});
-  return sets[0];
-}
-
 } // namespace
 
 auto TriangleApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
@@ -136,13 +104,11 @@ auto TriangleApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
                                     this->cmdpool_, this->graphics_, buffers,
                                     ::vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-  this->set_layout_ = create_descriptor_set_layout(this->device_);
-  this->desc_pool_ =
-      create_descriptor_pool(this->device_, this->required_info_.image_count,
-                             ::vk::DescriptorType::eUniformBuffer);
-  this->desc_set_ =
-      allocate_descriptor_set(this->device_, this->desc_pool_,
-                              this->set_layout_, this->device_buffers_.back());
+  ::std::tie(this->desc_pool_, this->set_layout_, this->desc_sets_) =
+      allocate_descriptor_set<::vk::Buffer>(
+          this->device_, --this->device_buffers_.end(),
+          this->device_buffers_.end(), ::vk::DescriptorType::eUniformBuffer,
+          ::vk::ShaderStageFlagBits::eVertex, sizeof(MVP));
 
   this->shader_modules_ = {
       create_shader_module(this->device_, shader_path / "main.vert.spv"),
@@ -166,7 +132,7 @@ auto TriangleApplication::app_destroy() -> void {
   for (auto &shader : this->shader_modules_) {
     this->device_.destroyShaderModule(shader);
   }
-  this->device_.freeDescriptorSets(this->desc_pool_, this->desc_set_);
+  this->device_.freeDescriptorSets(this->desc_pool_, this->desc_sets_);
   this->device_.destroyDescriptorPool(this->desc_pool_);
   this->device_.destroyDescriptorSetLayout(set_layout_);
   this->device_.freeMemory(this->device_memory_);
@@ -220,7 +186,7 @@ auto TriangleApplication::record_command(::vk::CommandBuffer &cbuf,
   cbuf.bindVertexBuffers(0, this->device_buffers_[0], {0});
   cbuf.bindIndexBuffer(this->device_buffers_[1], 0, ::vk::IndexType::eUint16);
   cbuf.bindDescriptorSets(::vk::PipelineBindPoint::eGraphics, this->layout_, 0,
-                          this->desc_set_, {});
+                          this->desc_sets_, {});
 
   auto millisec = ::std::chrono::duration_cast<::std::chrono::milliseconds>(
                       ::std::chrono::system_clock::now().time_since_epoch())
