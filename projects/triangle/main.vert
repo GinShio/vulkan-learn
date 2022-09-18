@@ -9,13 +9,13 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 model;
     mat4 view;
     mat4 project;
-} ubo;
+};
 
 layout(push_constant) uniform PushConstantObject {
     float c;
-} pco;
+};
 
 void main() {
-    gl_Position = ubo.model * ubo.view * ubo.project * vec4(in_pos, 0.0, 1.0);
-    out_color = pco.c * in_color;
+    gl_Position = project * view * model * vec4(in_pos, 0.0, 1.0);
+    out_color = c * in_color;
 }

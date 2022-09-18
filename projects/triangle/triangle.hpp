@@ -3,6 +3,8 @@
 
 #include "renderer.hpp"
 
+#include <chrono>
+
 class TriangleApplication : public Renderer<TriangleApplication> {
   using this_class = TriangleApplication;
   using base_class = Renderer<this_class>;
@@ -19,6 +21,8 @@ private:
   auto record_command(::vk::CommandBuffer &cbuf, ::vk::Framebuffer &fbuf)
       -> void;
 
+  ::std::chrono::time_point<::std::chrono::system_clock> start_time_{
+      ::std::chrono::system_clock::now()};
   ::vk::DeviceMemory device_memory_{nullptr};
   ::vk::DescriptorSetLayout set_layout_{nullptr};
   ::vk::DescriptorPool desc_pool_{nullptr};

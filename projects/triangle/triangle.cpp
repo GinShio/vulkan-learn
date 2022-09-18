@@ -188,11 +188,11 @@ auto TriangleApplication::record_command(::vk::CommandBuffer &cbuf,
   cbuf.bindDescriptorSets(::vk::PipelineBindPoint::eGraphics, this->layout_, 0,
                           this->desc_sets_, {});
 
-  auto millisec = ::std::chrono::duration_cast<::std::chrono::milliseconds>(
-                      ::std::chrono::system_clock::now().time_since_epoch())
-                      .count();
-  float color = ::glm::abs(
-      ::glm::mix(.0, 1., ::glm::sin(::glm::radians(millisec / 16.))));
+  auto time = ::std::chrono::duration_cast<::std::chrono::milliseconds>(
+                  this->start_time_ - ::std::chrono::system_clock::now())
+                  .count() /
+              1000.f;
+  float color = ::glm::abs(::glm::mix(.0, 1., ::glm::sin(time)));
   cbuf.pushConstants(this->layout_, ::vk::ShaderStageFlagBits::eVertex, 0,
                      sizeof(float), &color);
 
