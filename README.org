@@ -155,6 +155,16 @@ last, run the application
 xmake run -w. TARGET_NAME
 #+end_src
 
+** Shader Input
+*** Canvas
+|-----+--------------+------------------+--------+-------+------------------+-----------------------------------|
+| set | binding / id | storage          | name   | type  | offset (in byte) | comment                           |
+|-----+--------------+------------------+--------+-------+------------------+-----------------------------------|
+|     |              | push_constant    | time   | float |                0 | shader playback time (in seconds) |
+|     |              | push_constant    | extent | vec2  |                8 | viewport resolution (in pixels)   |
+|     |              | push_constant    | mouse  | vec2  |               16 | mouse pixel coords                |
+|     |            0 | special_constant | PI     | float |                  |                                   |
+
 ** C++ technical
  + [[https://www.geeksforgeeks.org/curiously-recurring-template-pattern-crtp-2/][Curiously recurring template pattern (CRTP)]]
  + [[https://en.cppreference.com/w/cpp/language/structured_binding][Structured binding declaration]]

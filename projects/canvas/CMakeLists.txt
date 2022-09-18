@@ -30,4 +30,7 @@ target_glsl_shaders(${PROJECT_NAME} PRIVATE
   shader/helloworld.frag
   shader/circle.frag
   shader/pacman.frag
+  shader/labyrinth.frag
+  shader/cell.frag
+  shader/warping.frag
   )

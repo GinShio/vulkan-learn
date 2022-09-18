@@ -3,31 +3,32 @@
 #version 430 core
 
 layout(constant_id = 0) const float kPI = 3.14f;
-layout(constant_id = 1) const float kRadius = 0.1f;
 
 layout(push_constant, std430) uniform PushConstantObject {
-    int millisec;
+    float time;
     vec2 extent;
-} pco;
+};
 
 layout(location = 0) out vec4 color;
 
-float get_circle(vec2 offset, float radius) {
+const float kRadius = 0.25f;
+
+float get_circle(in vec2 offset, in float radius) {
     float dist = length(offset);
     return step(dist, radius);
 }
 
-float get_arc(vec2 center, vec2 coord, float start, float end) {
+float get_arc(in vec2 center, in vec2 coord, in float start, in float end) {
     vec2 offset = coord - center;
     float angle = atan(offset.y, offset.x) / kPI;
     return step(start, angle) * step(angle, end) * get_circle(offset, kRadius);
 }
 
 void main() {
-    vec2 scale = {pco.extent.x / pco.extent.y, 1.f};
-    vec2 coord = gl_FragCoord.xy / pco.extent.xy * scale; // normalized
+    vec2 scale = {extent.x / extent.y, 1.f};
+    vec2 coord = gl_FragCoord.xy / extent * scale; // normalized
     vec2 center = vec2(.5f, .5f) * scale;
-    const float r = radians(pco.millisec / 5);
+    const float r = time * 4.f;
 
     vec2 pacman_center = vec2(.75f, .5f) * scale;
     const float pacman_angle = .8f;

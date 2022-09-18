@@ -31,15 +31,17 @@ Window::Window(::std::string const &name, int width, int height, Uint32 flags)
                                SDL_WINDOWPOS_CENTERED, width, height, flags)} {}
 
 Window::Window(Window &&other) noexcept
-    : window_{other.window_}, event_{other.event_}, is_quited_{
-                                                        other.is_quited_} {
+    : is_quited_{other.is_quited_}, window_{other.window_},
+      event_{other.event_}, keycode_{other.keycode_}, mouse_{other.mouse_} {
   other.window_ = nullptr;
 }
 
 Window &Window::operator=(Window &&other) noexcept {
+  ::std::swap(this->is_quited_, other.is_quited_);
   ::std::swap(this->window_, other.window_);
   ::std::swap(this->event_, other.event_);
-  ::std::swap(this->is_quited_, other.is_quited_);
+  ::std::swap(this->keycode_, other.keycode_);
+  ::std::swap(this->mouse_, other.mouse_);
   return *this;
 }
 
@@ -53,6 +55,12 @@ auto Window::get_size() const -> ::std::pair<int, int> {
   return ::std::make_pair(width, height);
 }
 
+auto Window::get_mouse_state() const -> ::std::pair<int, int> {
+  return this->mouse_;
+}
+
+auto Window::get_keycode() const -> SDL_Keycode { return this->keycode_; }
+
 auto Window::get_extensions() -> ::std::vector<char const *> {
   unsigned int count{0};
   SDL_Vulkan_GetInstanceExtensions(this->window_, &count, nullptr);
@@ -65,5 +73,24 @@ auto Window::get_extensions() -> ::std::vector<char const *> {
 Window::~Window() {
   if (this->window_ != nullptr) {
     SDL_DestroyWindow(this->window_);
+  }
+}
+
+auto Window::event_handling() -> void {
+  if (this->event_.type == SDL_MOUSEMOTION) {
+    SDL_GetMouseState(&this->mouse_.first, &this->mouse_.second);
+  }
+  if (this->event_.type == SDL_QUIT) {
+    this->is_quited_ = true;
+  }
+  switch (this->event_.key.keysym.sym) {
+  case SDLK_ESCAPE: {
+    this->is_quited_ = true;
+    break;
+  }
+  default: {
+    this->keycode_ = this->event_.key.keysym.sym;
+    break;
+  }
   }
 }

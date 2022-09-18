@@ -33,14 +33,13 @@ namespace {
 ::std::array<uint16_t, 6> indices{0, 1, 2, 1, 2, 3};
 
 struct PushConstantObject {
-  ::glm::int32_t millisec;
+  alignas(4)::glm::float32_t time;
   alignas(8)::glm::vec2 extent;
+  alignas(8)::glm::vec2 mouse;
 } pco;
 
 struct SpecializationConstantData {
   float PI{::acos(-1.f)};
-  float radius{0.25f};
-  float stroke{0.01f};
 } scd;
 
 auto create_render_pass(::vk::Device &device,
@@ -83,27 +82,33 @@ auto create_pipeline_layout(::vk::Device &device) -> ::vk::PipelineLayout {
 }
 
 auto get_special_map_entries()
-    -> ::std::array<::vk::SpecializationMapEntry, 3> {
-  ::std::array<::vk::SpecializationMapEntry, 3> entries;
+    -> ::std::array<::vk::SpecializationMapEntry, 1> {
+  ::std::array<::vk::SpecializationMapEntry, 1> entries;
   entries[0]
       .setConstantID(0)
       .setSize(sizeof(SpecializationConstantData::PI))
       .setOffset(offsetof(SpecializationConstantData, PI));
-  entries[1]
-      .setConstantID(1)
-      .setSize(sizeof(SpecializationConstantData::radius))
-      .setOffset(offsetof(SpecializationConstantData, radius));
-  entries[2]
-      .setConstantID(2)
-      .setSize(sizeof(SpecializationConstantData::stroke))
-      .setOffset(offsetof(SpecializationConstantData, stroke));
   return entries;
+}
+
+auto update_pushconstant(
+    Window &window, ::vk::Extent2D &extent,
+    ::std::chrono::time_point<::std::chrono::system_clock> &start) {
+  auto now = ::std::chrono::system_clock::now();
+  pco.time =
+      ::std::chrono::duration_cast<::std::chrono::milliseconds>(now - start)
+          .count() /
+      1000.f;
+  pco.extent = {extent.width, extent.height};
+  auto [mouse_x, mouse_y] = window.get_mouse_state();
+  pco.mouse = {mouse_x, mouse_y};
 }
 
 } // namespace
 
 CanvasApplication::CanvasApplication() : base_class() {
   this->window_ = Window{::std::string{"Canvas - "} + shader_name};
+  this->start_time_ = decltype(this->start_time_)::clock::now();
 }
 
 auto CanvasApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
@@ -143,9 +148,6 @@ auto CanvasApplication::app_init(QueueFamilyIndices &queue_indices) -> void {
       .setPName("main")
       .setPSpecializationInfo(&special_info);
   this->pipeline_ = this->create_pipeline({vert_stage, frag_stage});
-
-  pco.extent = {this->required_info_.extent.width,
-                this->required_info_.extent.height};
 }
 
 auto CanvasApplication::app_destroy() -> void {
@@ -170,12 +172,10 @@ auto CanvasApplication::get_vertex_input_description() -> decltype(auto) {
       .setBinding(0)
       .setLocation(0)
       .setOffset(0);
-
   ::vk::VertexInputBindingDescription bind_desc;
   bind_desc.setBinding(0)
       .setInputRate(::vk::VertexInputRate::eVertex)
       .setStride(sizeof(::glm::vec2));
-
   return ::std::make_pair(attr_desc, bind_desc);
 }
 
@@ -196,15 +196,12 @@ auto CanvasApplication::record_command(::vk::CommandBuffer &cbuf,
   cbuf.beginRenderPass(render_pass_begin, ::vk::SubpassContents::eInline);
   cbuf.bindPipeline(::vk::PipelineBindPoint::eGraphics, this->pipeline_);
 
+  update_pushconstant(this->window_, this->required_info_.extent,
+                      this->start_time_);
   cbuf.bindVertexBuffers(0, this->device_buffers_[0], {0});
   cbuf.bindIndexBuffer(this->device_buffers_[1], 0, ::vk::IndexType::eUint16);
-
-  pco.millisec = ::std::chrono::duration_cast<::std::chrono::milliseconds>(
-                     ::std::chrono::system_clock::now().time_since_epoch())
-                     .count();
   cbuf.pushConstants(this->layout_, ::vk::ShaderStageFlagBits::eFragment, 0,
                      sizeof(PushConstantObject), &pco);
-
   cbuf.drawIndexed(indices.size(), 1, 0, 0, 0);
 
   cbuf.endRenderPass();

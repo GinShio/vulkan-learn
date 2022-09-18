@@ -3,6 +3,8 @@
 
 #include "renderer.hpp"
 
+#include <chrono>
+
 class CanvasApplication : public Renderer<CanvasApplication> {
   using this_class = CanvasApplication;
   using base_class = Renderer<this_class>;
@@ -21,6 +23,8 @@ private:
 
   auto record_command(::vk::CommandBuffer &cbuf, ::vk::Framebuffer &fbuf)
       -> void;
+
+  ::std::chrono::time_point<::std::chrono::system_clock> start_time_;
 
   ::vk::DeviceMemory device_memory_{nullptr};
   ::std::vector<::vk::Buffer> device_buffers_;

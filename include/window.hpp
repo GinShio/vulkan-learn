@@ -28,23 +28,28 @@ public:
 
   auto get_size() const -> ::std::pair<int, int>;
 
+  auto get_mouse_state() const -> ::std::pair<int, int>;
+  auto get_keycode() const -> SDL_Keycode;
+
   auto get_extensions() -> ::std::vector<char const *>;
 
 private:
+  auto event_handling() -> void;
+
 public:
 private:
+  bool is_quited_{false};
   SDL_Window *window_{nullptr};
   SDL_Event event_;
-  bool is_quited_{false};
+  SDL_Keycode keycode_{0};
+  ::std::pair<int, int> mouse_{0, 0};
 };
 
 template <typename App>
 inline auto Window::main_loop(App *app, void (*func)(App *)) -> void {
   while (!this->is_quited_) {
     while (SDL_PollEvent(&this->event_)) {
-      if (this->event_.type == SDL_QUIT) {
-        this->is_quited_ = true;
-      }
+      this->event_handling();
     }
     func(app);
   }
